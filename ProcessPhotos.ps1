@@ -27,6 +27,10 @@ $convertedPath = $path + "\" + "ConvertedToDNG"
 
 $jpg = Get-ChildItem $path -Filter *.jpg
 $srw = Get-ChildItem $path -Filter *.srw
+$heic = Get-ChildItem $path -Filter *.heic
+$arw = Get-ChildItem $path -Filter *.arw
+
+$images = $jpg + $dng + $heic + $arw
 
 $dups = Compare-Object $jpg.basename $srw.basename -ExcludeDifferent -IncludeEqual -PassThru
 # | Where { $_.SideIndicator -eq '==' } 

@@ -12,7 +12,10 @@ if(!(Test-Path $NASpath))
 $models = Get-Content -Raw $modelsPath | ConvertFrom-StringData
 $jpg = Get-ChildItem $path -Filter *.jpg
 $dng = Get-ChildItem $path -Filter *.dng
-$images = $jpg + $dng
+$arw = Get-ChildItem $path -Filter *.arw
+$srw = Get-ChildItem $path -Filter *.srw
+
+$images = $jpg + $dng + $arw + $srw
 
 # create Exiftool process
 $psi = New-Object System.Diagnostics.ProcessStartInfo

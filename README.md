@@ -1,10 +1,15 @@
 # Introduction
 These are my personal PowerShell scripts for manipulating photos. 
 
-Roadmap:
-1. Move functions to modules. See: https://www.red-gate.com/simple-talk/dotnet/.net-tools/further-down-the-rabbit-hole-powershell-modules-and-encapsulation/
-2. Hide CloudBerry backup encryption key. 
-3. update Readme
+# Roadmap:
+1. Functions:
+    -Check for duplicates
+    -Rename using EXIF info
+    -Copy to NAS
+    -Backup
+2. Move functions to modules. See: https://www.red-gate.com/simple-talk/dotnet/.net-tools/further-down-the-rabbit-hole-powershell-modules-and-encapsulation/
+3. Hide CloudBerry backup encryption key. 
+4. update Readme
 
 # Getting Started
 TODO: Guide users through getting your code up and running on their own system. In this section you can talk about:
@@ -24,6 +29,7 @@ Thanks to:
 
 1. PatE (http://u88.n24.queensu.ca/exiftool/forum/index.php?action=profile;area=summary;u=5737) for the exmple (http://u88.n24.queensu.ca/exiftool/forum/index.php/topic,7857.0.html) on using Exiftool in memory.
 2. Gianluca Hotz (https://gist.github.com/ghotz) for the example (https://gist.github.com/ghotz/c614584f44bf975153ea) on using Exiftool in memory.
+3. ExifTool: https://sno.phy.queensu.ca/~phil/exiftool/
 
 
 If you want to learn more about creating good readme files then refer the following [guidelines](https://www.visualstudio.com/en-us/docs/git/create-a-readme). You can also seek inspiration from the below readme files:
