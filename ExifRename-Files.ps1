@@ -118,7 +118,7 @@ $exiftool.StandardInput.WriteLine("False")
 #$exiftool.StandardError.ReadToEnd()
 #$exiftool.StandardOutput.ReadToEnd()
 $exiftool.WaitForExit()
-$backupFolders = $backupFolders | Sort -Unique
+$backupFolders = $backupFolders | Sort-Object -Unique
 $backupFolders
 "Moved files - " + $moveFiles.count
 "Duplicate files - " + $dupFiles.count
