@@ -2,7 +2,7 @@
 
 
 #>
-$newyear = "2017"
+$newyear = "2016"
 $NASpath = "X:\Data\Pictures"
 $yearAlbumPath = Join-Path -Path $NASpath -ChildPath "Album" -AdditionalChildPath $newyear
 $yearOriginalPath = Join-Path -Path $NASpath -ChildPath "Original" AdditionalChildPath $newyear

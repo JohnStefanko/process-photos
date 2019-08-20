@@ -10,7 +10,20 @@ $browser = New-Object System.Windows.Forms.FolderBrowserDialog -Property @{
 $browser.Description = "Select folder"
 $null = $browser.ShowDialog()
 $path = $browser.SelectedPath
+
+
+$dups = Compare-Object $jpg.basename $arw.basename -ExcludeDifferent -IncludeEqual -PassThru
+# | Where { $_.SideIndicator -eq '==' } 
+$dups
+
+foreach($i in $dups)
+{
+    $dupName = $path + "\\" + $i + ".jpg"
+    Move-Item -Path $dupName -Destination $dupPath
+}
+
 #>
+#$path = "X:\Data\Pictures\From Camera\a6000"
 $path = "C:\Users\John\Pictures\Test-Script"
 
 $dupPath = Join-Path -Path $path -ChildPath "dups"
@@ -72,34 +85,31 @@ $imageNumber = switch ($model) {
     "iPhone8Plus" {$i.Name.Substring(4,4)}
     Default {"0000"}
 }
+$folderYear = $exifDTO.ToString("yyyy")
+$folderMonth = $exifDTO.ToString("yyyy-MM-MMMM")
 
-if(
-    (
-        # Google Photos can't see .srw, so can't use in Picasa
-        ($model -eq "NX300") -and ($i.Extension -eq ".srw")
-    ) -or 
-    (
-        #.arw files are ok, so put a6000 jpgs in Original
-        ($model -eq "a6000") -and ($i.Extension -eq ".jpg")
-    )
-   )
-{
-    $newPath = Join-Path -path $NASpath -ChildPath "Original" $exifDTO.ToString("yyyy") $exifDTO.ToString("yyyy-MM-MMMM")
+if (($model -eq "NX300") -and ($i.Extension -eq ".srw")) {
+    $folderMain = "Original" 
+    # Google Photos can't see .srw, so can't use in Picasa 
 }
-else
-{
-    $newPath = Join-Path -path $NASpath -ChildPath "Album" $exifDTO.ToString("yyyy") $exifDTO.ToString("yyyy-MM-MMMM")
+elseif (($model -eq "a6000") -and ($i.Extension -eq ".jpg") -and (Test-Path -Path (Join-Path -Path $path -ChildPath ($i.BaseName + ".arw")))){
+    $folderMain = "Original" 
+    # .jpg -> Original if .arw exists, else .jpg -> Album
+}
+else {
+    $folderMain = "Album"
 }
 
+$newPath = Join-Path -path $NASpath -ChildPath $folderMain $folderYear $folderMonth
 $newName = $model + "_" + $exifDTO.ToString("yyyy-MM-dd") + "_" + $exifDTO.ToString("HHmm") + "_" + $imageNumber + $i.Extension
 #rename with EXIF data
 $i = Rename-Item -path $i.FullName -NewName $newName -PassThru
 #copy
 
-if(!(Test-Path (Join-Path -Path $newPath -ChildPath $newName) ))
+if (!(Test-Path (Join-Path -Path $newPath -ChildPath $newName) ))
 {
     $j = Move-Item -Path $i.FullName -Destination $newPath -PassThru
-    $moveFiles += $i.Name
+    $moveFiles += $j.FullName
     $backupFolders += $newPath.ToString()
 }
 else {
@@ -119,6 +129,11 @@ $exiftool.StandardInput.WriteLine("False")
 #$exiftool.StandardOutput.ReadToEnd()
 $exiftool.WaitForExit()
 $backupFolders = $backupFolders | Sort-Object -Unique
+Set-Content -path (Join-Path -Path $path -ChildPath "backupfolders.txt") -Value $backupFolders
 $backupFolders
+Set-Content -path (Join-Path -Path $path -ChildPath "movedfiles.txt") -Value $moveFiles.count
+Add-Content -path (Join-Path -Path $path -ChildPath "movedfiles.txt") -Value $moveFiles
 "Moved files - " + $moveFiles.count
+Set-Content -path (Join-Path -Path $path -ChildPath "dupfiles.txt") -Value $dupfiles.count
+Add-Content -path (Join-Path -Path $path -ChildPath "dupfiles.txt") -Value $dupFiles
 "Duplicate files - " + $dupFiles.count
