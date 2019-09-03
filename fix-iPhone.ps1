@@ -1,35 +1,31 @@
 <#
 
-file dialog doesn't work with Core
-Add-Type -AssemblyName System.Windows.Forms
-$browser = New-Object System.Windows.Forms.FolderBrowserDialog -Property @{SelectedPath = [Environment]::GetFolderPath("MyDocuments")}
-$browser.Description = "Select folder"
-$null = $browser.ShowDialog()
-$path = $browser.SelectedPath
-
-#SelectedPath = 'X:\Data\Pictures\From Camera\NX300'
 #>
+$path = "C:\Users\John\Pictures\NX300"
 
-
-$path = "C:\Users\John\Pictures\iCloud Photos\Downloads\2018"
-#$path = "X:\Data\Pictures\From Camera\a6000-2"
-#$path = "C:\Users\John\Pictures\Test-Script"
-
+$dupPath = Join-Path -Path $path -ChildPath "dups"
 $NASpath = "X:\Data\Pictures"
 $modelsPath = "X:\Data\_config\Pictures\EXIFmodels.txt"
+$backupFolders = @()
+$moveFiles = @()
 $images = @()
+$dupFiles = @()
 if(!(Test-Path $NASpath))
 {
     "NAS drive not mapped!"
     Exit
 }
-
+if(!(Test-Path -Path $dupPath ))
+{
+    New-Item -ItemType directory -Path $dupPath
+}
 $models = Get-Content -Raw $modelsPath | ConvertFrom-StringData
-$jpg = Get-ChildItem $path -Filter IMG*.jpg
+$jpg = Get-ChildItem $path -Filter *.jpg
 $dng = Get-ChildItem $path -Filter *.dng
 $arw = Get-ChildItem $path -Filter *.arw
 $srw = Get-ChildItem $path -Filter *.srw
-$heic = Get-ChildItem $path -filter IMG*.heic
+$heic = Get-ChildItem $path -filter *.heic
+
 $images = $jpg + $arw + $dng + $srw + $heic
 
 # create Exiftool process
@@ -40,6 +36,7 @@ $psi.UseShellExecute = $false
 $psi.RedirectStandardInput = $true
 $psi.RedirectStandardOutput = $true
 $psi.RedirectStandardError = $true
+
 $exiftool = [System.Diagnostics.Process]::Start($psi)
 
 foreach($i in $images)
@@ -55,9 +52,6 @@ $exiftool.StandardInput.WriteLine("-DateTimeOriginal")
 $exiftool.StandardInput.WriteLine("$imagePath")
 $exiftool.StandardInput.WriteLine("-execute")
 $exifModel = $exiftool.StandardOutput.ReadLine()
-if ($exifModel -eq "{ready}") {
-    continue
-}
 $exifDTO = [DateTime]$exiftool.StandardOutput.ReadLine()
 $exiftool.StandardOutput.ReadLine()
 
@@ -67,16 +61,45 @@ $imageNumber = switch ($model) {
     "a6000" {$i.Name.Substring(4,4)}
     "iPhone7Plus" {$i.Name.Substring(4,4)}
     "iPhone8Plus" {$i.Name.Substring(4,4)}
-    Default {(Get-Item $i).Length}
+    Default {"0000"}
+}
+$folderYear = $exifDTO.ToString("yyyy")
+$folderMonth = $exifDTO.ToString("yyyy-MM-MMMM")
+
+if (($model -eq "NX300") -and ($i.Extension -eq ".srw")) {
+    $folderMain = "Raw" 
+    # Google Photos can't see .srw, so can't use in Picasa 
+}
+elseif (($model -eq "NX300") -and ($i.Extension -eq ".jpg")) {
+    $folderMain = "Album"
+}
+elseif (($model -eq "a6000") -and ($i.Extension -eq ".jpg") -and (Test-Path -Path (Join-Path -Path $path -ChildPath ($i.BaseName + ".arw")))){
+    $folderMain = "Raw" 
+    # .jpg -> Original if .arw exists, else .jpg -> Album
+}
+elseif ($i.extension -eq ".heic") {
+    $folderMain = "Raw"
+}
+else {
+    $folderMain = "Album"
 }
 
+$newPath = Join-Path -path $NASpath -ChildPath $folderMain $folderYear $folderMonth
 $newName = $model + "_" + $exifDTO.ToString("yyyy-MM-dd") + "_" + $exifDTO.ToString("HHmm") + "_" + $imageNumber + $i.Extension
 #rename with EXIF data
-if (Test-Path (Join-Path -Path $path -ChildPath $newName)) {
-    $newName = $model + "_" + $exifDTO.ToString("yyyy-MM-dd") + "_" + $exifDTO.ToString("HHmm") + "_" + $imageNumber + "_" + (Get-Item $i).Length + $i.Extension
-}
-
 $i = Rename-Item -path $i.FullName -NewName $newName -PassThru
+
+#check if exists, if so > dup
+if (!(Test-Path (Join-Path -Path $newPath -ChildPath $newName) ))
+{
+    $j = Move-Item -Path $i.FullName -Destination $newPath -PassThru
+    $moveFiles += $j.FullName
+    $backupFolders += $newPath.ToString()
+}
+else {
+    $j = Move-Item -Path $i.FullName -Destination $dupPath -PassThru
+    $dupFiles += $i.Name
+}
 
 # end image loop
 }
@@ -89,4 +112,12 @@ $exiftool.StandardInput.WriteLine("False")
 #$exiftool.StandardError.ReadToEnd()
 #$exiftool.StandardOutput.ReadToEnd()
 $exiftool.WaitForExit()
-
+$backupFolders = $backupFolders | Sort-Object -Unique
+Set-Content -path (Join-Path -Path $path -ChildPath "backupfolders.txt") -Value $backupFolders
+$backupFolders
+Set-Content -path (Join-Path -Path $path -ChildPath "movedfiles.txt") -Value $moveFiles.count
+Add-Content -path (Join-Path -Path $path -ChildPath "movedfiles.txt") -Value $moveFiles
+"Moved files - " + $moveFiles.count
+Set-Content -path (Join-Path -Path $path -ChildPath "dupfiles.txt") -Value $dupfiles.count
+Add-Content -path (Join-Path -Path $path -ChildPath "dupfiles.txt") -Value $dupFiles
+"Duplicate files - " + $dupFiles.count
