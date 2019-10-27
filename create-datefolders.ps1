@@ -5,7 +5,7 @@
 $newyear = "2014"
 $NASpath = "X:\Data\Pictures"
 $yearAlbumPath = Join-Path -Path $NASpath -ChildPath "Album" -AdditionalChildPath $newyear
-$yearRawPath = Join-Path -Path $NASpath -ChildPath "Raw" -AdditionalChildPath $newyear
+$yearArchivePath = Join-Path -Path $NASpath -ChildPath "Archive" -AdditionalChildPath $newyear
 if(!(Test-Path $NASpath))
 {
     "NAS drive not mapped!"
@@ -17,9 +17,9 @@ if(!(Test-Path -Path $yearAlbumPath ))
     New-Item -ItemType directory -Path $yearAlbumPath
 }
 
-if(!(Test-Path -Path $yearRawPath ))
+if(!(Test-Path -Path $yearArchivePath ))
 {
-    New-Item -ItemType directory -Path $yearRawPath
+    New-Item -ItemType directory -Path $yearArchivePath
 }
 
 
@@ -27,14 +27,14 @@ for($m=1; $m -le 12; $m++)
 {
     $month = ([datetime]"$m/1/$newyear").ToString("yyyy-MM-MMMM")
     $newAlbumMonth = Join-Path -Path $yearAlbumPath -ChildPath $month
-    $newRawMonth = Join-Path -Path $yearRawPath -ChildPath $month
+    $newArchiveMonth = Join-Path -Path $yearArchivePath -ChildPath $month
     if(!(Test-Path -Path $newAlbumMonth ))
     {
         New-Item -ItemType directory -Path $newAlbumMonth
     }
-    if(!(Test-Path -Path $newRawMonth ))
+    if(!(Test-Path -Path $newArchiveMonth ))
     {
-        New-Item -ItemType directory -Path $newRawMonth
+        New-Item -ItemType directory -Path $newArchiveMonth
     }
 
 }

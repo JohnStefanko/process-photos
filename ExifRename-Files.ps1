@@ -1,5 +1,27 @@
 <#
+.SYNOPSIS
+    Renames image files based on EXIF Model, DateTimeOriginal, and original image number.
 
+.DESCRIPTION
+    Assumes Exiftool is installed via Chocolatey at "C:\ProgramData\chocolatey\bin\exiftool.exe"
+
+.PARAMETER Path
+    Path to folder with images to be renamed
+
+.INPUTS
+    None. You cannot pipe objects to Add-Extension.
+
+.OUTPUTS
+    None.
+
+.EXAMPLE
+    ExifRename-Files -path C:\data\photos
+
+.LINK
+    None.
+#>
+
+<#
 file dialog doesn't work with Core
 Add-Type -AssemblyName System.Windows.Forms
 $browser = New-Object System.Windows.Forms.FolderBrowserDialog -Property @{SelectedPath = [Environment]::GetFolderPath("MyDocuments")}
@@ -9,9 +31,13 @@ $path = $browser.SelectedPath
 
 #SelectedPath = 'X:\Data\Pictures\From Camera\NX300'
 #>
-
-
-$path = "C:\Users\John\Pictures\iCloud Photos\Downloads\2018"
+[CmdletBinding()]
+param (
+    [Parameter(Mandatory=$true,HelpMessage="Enter path for files to rename")]
+    [string]
+    $path
+)
+#$path = "C:\Users\John\Pictures\iCloud Photos\Downloads"
 #$path = "X:\Data\Pictures\From Camera\a6000-2"
 #$path = "C:\Users\John\Pictures\Test-Script"
 
@@ -25,11 +51,11 @@ if(!(Test-Path $NASpath))
 }
 
 $models = Get-Content -Raw $modelsPath | ConvertFrom-StringData
-$jpg = Get-ChildItem $path -Filter IMG*.jpg
+$jpg = Get-ChildItem $path -Filter *.jpg
 $dng = Get-ChildItem $path -Filter *.dng
 $arw = Get-ChildItem $path -Filter *.arw
 $srw = Get-ChildItem $path -Filter *.srw
-$heic = Get-ChildItem $path -filter IMG*.heic
+$heic = Get-ChildItem $path -filter *.heic
 $images = $jpg + $arw + $dng + $srw + $heic
 
 # create Exiftool process
@@ -55,6 +81,7 @@ $exiftool.StandardInput.WriteLine("-DateTimeOriginal")
 $exiftool.StandardInput.WriteLine("$imagePath")
 $exiftool.StandardInput.WriteLine("-execute")
 $exifModel = $exiftool.StandardOutput.ReadLine()
+# if no EXIF Model, skip to next photo
 if ($exifModel -eq "{ready}") {
     continue
 }
@@ -70,10 +97,10 @@ $imageNumber = switch ($model) {
     Default {(Get-Item $i).Length}
 }
 
-$newName = $model + "_" + $exifDTO.ToString("yyyy-MM-dd") + "_" + $exifDTO.ToString("HHmm") + "_" + $imageNumber + $i.Extension
+$newName = ($model, $exifDTO.ToString("yyyy-MM-dd"), $exifDTO.ToString("HHmm"), $imageNumber -join "_") + $i.Extension
 #rename with EXIF data
 if (Test-Path (Join-Path -Path $path -ChildPath $newName)) {
-    $newName = $model + "_" + $exifDTO.ToString("yyyy-MM-dd") + "_" + $exifDTO.ToString("HHmm") + "_" + $imageNumber + "_" + (Get-Item $i).Length + $i.Extension
+    $newName = ($model, $exifDTO.ToString("yyyy-MM-dd"), $exifDTO.ToString("HHmm"), $imageNumber, (Get-Item $i).Length -join "_") + $i.Extension
 }
 
 $i = Rename-Item -path $i.FullName -NewName $newName -PassThru

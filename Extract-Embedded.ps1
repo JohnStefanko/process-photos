@@ -1,4 +1,4 @@
-$path = "X:\Data\Pictures\Raw\NX300\both"
+$path = "C:\Users\John\Pictures\NX300"
 $images = @()
 $images = Get-ChildItem $path -Filter *.srw
 

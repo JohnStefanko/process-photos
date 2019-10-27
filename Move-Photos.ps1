@@ -1,32 +1,36 @@
 <#
+.SYNOPSIS
+    Moves images from the specified path to the NAS Album folder based on EXIF DateTimeOriginal.
 
-Input: files
+.DESCRIPTION
+    Assumes Exiftool is installed via Chocolatey at "C:\ProgramData\chocolatey\bin\exiftool.exe."
 
-Add-Type -AssemblyName System.Windows.Forms
-$browser = New-Object System.Windows.Forms.FolderBrowserDialog -Property @{
-    #SelectedPath = 'X:\Data\Pictures\From Camera\NX300'
-    SelectedPath = [Environment]::GetFolderPath("MyDocuments")
-}
-$browser.Description = "Select folder"
-$null = $browser.ShowDialog()
-$path = $browser.SelectedPath
+.PARAMETER Path
+    Path to folder with images to be renamed
 
-$raw = $arw + $dng + $srw
-$dups = Compare-Object $jpg.basename $raw.basename -ExcludeDifferent -IncludeEqual -PassThru | Where-Object { $_.SideIndicator -eq '==' } 
-foreach($i in $dups)
-{
-    $j = Move-Item -Path $i.FullName -Destination $dupPath -PassThru
-    $dupFiles += $i.Name
-    $dupName = $path + "\\" + $i + ".jp"
-    Move-Item -Path $dupName -Destination $dupPath
-}
+.INPUTS
+    None. You cannot pipe objects to Add-Extension.
+
+.OUTPUTS
+    Create movedfiles.txt, dupfiles.txt, and backupfiles.txt showing which NAS folders need to be backed up.
+
+.EXAMPLE
+    Move-Photos -path C:\data\photos
+
+.LINK
+    None.
+
 #>
-$path = "C:\Users\John\Pictures\NX300"
-#$path = "X:\Data\Pictures\From Camera\a6000-2"
-#$path = "C:\Users\John\Pictures\Test-Script"
+[CmdletBinding()]
+param (
+    [Parameter(Mandatory=$true,HelpMessage="Enter path for files to move")]
+    [string]
+    $path
+)
+#$path = "C:\Users\John\Pictures\From Camera\iPhone7Plus-2"
 
 $dupPath = Join-Path -Path $path -ChildPath "dups"
-$NASpath = "X:\Data\Pictures"
+$NASpath = "X:\Data\Pictures\Album"
 $modelsPath = "X:\Data\_config\Pictures\EXIFmodels.txt"
 $backupFolders = @()
 $moveFiles = @()
@@ -48,7 +52,7 @@ $arw = Get-ChildItem $path -Filter *.arw
 $srw = Get-ChildItem $path -Filter *.srw
 $heic = Get-ChildItem $path -filter *.heic
 
-$images = $jpg + $arw + $dng + $srw + $heic
+$images = $jpg + $arw + $dng + $srw
 
 # create Exiftool process
 $psi = New-Object System.Diagnostics.ProcessStartInfo
@@ -74,45 +78,24 @@ $exiftool.StandardInput.WriteLine("-DateTimeOriginal")
 $exiftool.StandardInput.WriteLine("$imagePath")
 $exiftool.StandardInput.WriteLine("-execute")
 $exifModel = $exiftool.StandardOutput.ReadLine()
+# if no EXIF Model, skip to next photo
+if ($exifModel -eq "{ready}") {
+    continue
+}
 $exifDTO = [DateTime]$exiftool.StandardOutput.ReadLine()
 $exiftool.StandardOutput.ReadLine()
 
-$model = $models[$exifModel]
-$imageNumber = switch ($model) {
-    "NX300" {$i.Name.Substring(4,4)}
-    "a6000" {$i.Name.Substring(4,4)}
-    "iPhone7Plus" {$i.Name.Substring(4,4)}
-    "iPhone8Plus" {$i.Name.Substring(4,4)}
-    Default {"0000"}
-}
 $folderYear = $exifDTO.ToString("yyyy")
 $folderMonth = $exifDTO.ToString("yyyy-MM-MMMM")
 
-if ($i.Extension -eq ".srw") {
-    $folderMain = "Raw" 
-    # Google Photos can't see .srw, so can't use in Picasa 
-}
-elseif (($model -eq "NX300") -and ($i.Extension -eq ".jpg")) {
-    $folderMain = "Album"
-}
-elseif (($model -eq "a6000") -and ($i.Extension -eq ".jpg") -and (Test-Path -Path (Join-Path -Path $path -ChildPath ($i.BaseName + ".arw")))){
-    $folderMain = "Raw" 
-    # .jpg -> Original if .arw exists, else .jpg -> Album
-}
-elseif ($i.extension -eq ".heic") {
-    $folderMain = "Raw"
-}
-else {
-    $folderMain = "Album"
-}
-
-$newPath = Join-Path -path $NASpath -ChildPath $folderMain $folderYear $folderMonth
+$newPath = Join-Path -path $NASpath -ChildPath $folderYear $folderMonth
 #check if exists, if so > dup
-if (!(Test-Path (Join-Path -Path $newPath -ChildPath $newName) ))
+if (!(Test-Path (Join-Path -Path $newPath -ChildPath $i.Name) ))
 {
     $j = Move-Item -Path $i.FullName -Destination $newPath -PassThru
     $moveFiles += $j.FullName
     $backupFolders += $newPath.ToString()
+    $i.Name
 }
 else {
     $j = Move-Item -Path $i.FullName -Destination $dupPath -PassThru
