@@ -37,7 +37,7 @@ param (
     [string]
     $path
 )
-#$path = "C:\Users\John\Pictures\iCloud Photos\Downloads"
+$path = "C:\Users\John\Pictures\iCloud Photos\Downloads"
 #$path = "X:\Data\Pictures\From Camera\a6000-2"
 #$path = "C:\Users\John\Pictures\Test-Script"
 

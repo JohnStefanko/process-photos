@@ -2,8 +2,9 @@
 
 
 #>
-$newyear = "2014"
-$NASpath = "X:\Data\Pictures"
+$newyear = "2021"
+#$NASpath = "P:\Data\Pictures"
+$NASpath = "C:\Users\John\Pictures\Test\darktable"
 $yearAlbumPath = Join-Path -Path $NASpath -ChildPath "Album" -AdditionalChildPath $newyear
 $yearArchivePath = Join-Path -Path $NASpath -ChildPath "Archive" -AdditionalChildPath $newyear
 if(!(Test-Path $NASpath))

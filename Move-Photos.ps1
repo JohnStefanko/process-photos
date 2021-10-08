@@ -27,10 +27,14 @@ param (
     [string]
     $path
 )
-#$path = "C:\Users\John\Pictures\From Camera\iPhone7Plus-2"
-
-$dupPath = Join-Path -Path $path -ChildPath "dups"
+$path = "P:\Data\Pictures\From Camera\a6000"
+#"C:\Users\John\Pictures\iCloud Photos\Downloads"
+#"C:\Users\John\Pictures\iCloud Photos\Downloads\dups"
+#"P:\Data\Pictures\From Camera\a6000"
+#$dupPath = Join-Path -Path $path -ChildPath "dups"
+$dupPath = "P:\Data\Pictures\From Camera\a6000\dups"
 $NASpath = "X:\Data\Pictures\Album"
+$copyPath = "P:\Data\Pictures\Album"
 $modelsPath = "X:\Data\_config\Pictures\EXIFmodels.txt"
 $backupFolders = @()
 $moveFiles = @()
@@ -85,11 +89,31 @@ if ($exifModel -eq "{ready}") {
 $exifDTO = [DateTime]$exiftool.StandardOutput.ReadLine()
 $exiftool.StandardOutput.ReadLine()
 
+$model = $models[$exifModel]
+$imageNumber = switch ($model) {
+    "NX300" {$i.Name.Substring(4,4)}
+    "a6000" {$i.Name.Substring(4,4)}
+    "iPhone7Plus" {$i.Name.Substring(4,4)}
+    "iPhone8Plus" {$i.Name.Substring(4,4)}
+    Default {(Get-Item $i).Length}
+}
+
+$newName = ($model, $exifDTO.ToString("yyyy-MM-dd"), $exifDTO.ToString("HHmm"), $imageNumber -join "_") + $i.Extension
+#rename with EXIF data
+if (Test-Path (Join-Path -Path $path -ChildPath $newName)) {
+    $newName = ($model, $exifDTO.ToString("yyyy-MM-dd"), $exifDTO.ToString("HHmm"), $imageNumber, (Get-Item $i).Length -join "_") + $i.Extension
+}
+
+$i = Rename-Item -path $i.FullName -NewName $newName -PassThru
+
+#copy to NAS Album
 $folderYear = $exifDTO.ToString("yyyy")
 $folderMonth = $exifDTO.ToString("yyyy-MM-MMMM")
 
 $newPath = Join-Path -path $NASpath -ChildPath $folderYear $folderMonth
-#check if exists, if so > dup
+$newCopyPath = Join-Path -path $copyPath -ChildPath $folderYear $folderMonth
+$j = Copy-Item -Path $i.FullName -Destination $newCopyPath -PassThru
+#move to local Album; check if exists, if so > dup
 if (!(Test-Path (Join-Path -Path $newPath -ChildPath $i.Name) ))
 {
     $j = Move-Item -Path $i.FullName -Destination $newPath -PassThru
