@@ -120,6 +120,14 @@ if (!(Test-Path (Join-Path -Path $newPath -ChildPath $i.Name) ))
     $moveFiles += $j.FullName
     $backupFolders += $newPath.ToString()
     $i.Name
+    $exiftool.StandardInput.WriteLine("-tagsFromFile")
+    $exiftool.StandardInput.WriteLine("$J.FullName")
+    $exiftool.StandardInput.WriteLine("-all:all")
+    $exiftool.StandardInput.WriteLine("-icc_profile")
+    $exiftool.StandardInput.WriteLine("$J.FullName.mie")
+    $exiftool.StandardInput.WriteLine("-execute")
+    $exiftoolOut = $exiftool.StandardOutput.ReadLine()
+    $exiftoolOut
 }
 else {
     $j = Move-Item -Path $i.FullName -Destination $dupPath -PassThru
