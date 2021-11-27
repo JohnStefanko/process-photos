@@ -1,12 +1,12 @@
 <#
 .SYNOPSIS
-    Process photos newly imported from camera. Rename, and make backup to second drive. Will only process photos that have exif model.
+    Process culled photos; move 2+ star rating to year/month folder structure under \Album; move 1 star rating photos to \Archive folder. 
 
 .DESCRIPTION
     Assumes Exiftool is installed via Chocolatey at "C:\ProgramData\chocolatey\bin\exiftool.exe."
 
 .PARAMETER Path
-    Path to folder with images to be renamed
+    Path to folder with images to be processed.
 
 .INPUTS
     Path of photos to process.
@@ -44,15 +44,15 @@ $moveFiles = @()
 $images = @()
 $imageNumbers = @()
 $dupFiles = @()
-#if(!(Test-Path $NASpath))
-#{
-#    "NAS drive not mapped!"
-#    Exit
-#}
-#if(!(Test-Path -Path $dupPath ))
-#{
-#    New-Item -ItemType directory -Path $dupPath
-#}
+if(!(Test-Path $NASpath))
+{
+    "NAS drive not mapped!"
+    Exit
+}
+if(!(Test-Path -Path $dupPath ))
+{
+    New-Item -ItemType directory -Path $dupPath
+}
 # get exif model name > friendly model array
 $models = Get-Content -Raw $modelsFile | ConvertFrom-StringData
 $jpg = Get-ChildItem $path -Filter *.jpg
@@ -95,33 +95,26 @@ if ($exifModel -eq "{ready}") {
 $exifDTO = [DateTime]$exiftool.StandardOutput.ReadLine()
 $exiftool.StandardOutput.ReadLine()
 
-$model = $models[$exifModel]
-# get original photo incremental number from original filename based on model type
-$imageNumber = switch ($model) {
-    "NX300" {$i.Name.Substring(4,4)}
-    "a6000" {$i.Name.Substring(4,4)}
-    "iPhone7Plus" {$i.Name.Substring(4,4)}
-    "iPhone8Plus" {$i.Name.Substring(4,4)}
-    Default {(Get-Item $i).Length}
+$exiftool.StandardInput.WriteLine("Rating")
+$exiftool.StandardInput.WriteLine("s3")
+$exiftool.StandardInput.WriteLine("-execute")
+$exifRating = $exiftool.StandardOutput.ReadLine()
+# if no Rating, assume "1" (i.e. for \Archive)
+if ($exifRating -eq "{ready}") {
+    $exifRating = "1"
 }
-$imageNumbers += $imageNumber
+$exiftool.StandardOutput.ReadLine()
 
-# new file name with friendly model, exif date, and original number
-$newName = ($model, $exifDTO.ToString("yyyy-MM-dd"), $exifDTO.ToString("HHmm"), $imageNumber -join "_") + $i.Extension
-# check if new name exists, if so add length string
-if (Test-Path (Join-Path -Path $path -ChildPath $newName)) {
-    $newName = ($model, $exifDTO.ToString("yyyy-MM-dd"), $exifDTO.ToString("HHmm"), $imageNumber, (Get-Item $i).Length -join "_") + $i.Extension
-}
-#rename with EXIF data returning file with new name
-$i = Rename-Item -path $i.FullName -NewName $newName -PassThru
-
-#copy to backup folder; defaults to replace if file exists
-Copy-Item $i.FullName -Destination $backupPath
-
-#move to local Album; check if exists, if so > dup
 $folderYear = $exifDTO.ToString("yyyy")
 $folderMonth = $exifDTO.ToString("yyyy-MM-MMMM")
+
+#copy to NAS based on star
+$xmpPath = $imagePath + ".xmp"
+
+
+#move to local Album; check if exists, if so > dup
 $movePath = Join-Path -path $movePathRoot -ChildPath $folderYear $folderMonth
+
 if (!(Test-Path (Join-Path -Path $movePath -ChildPath $i.Name) ))
 {
     $j = Move-Item -Path $i.FullName -Destination $movePath -PassThru
