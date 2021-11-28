@@ -33,13 +33,11 @@ $path = "P:\Data\Pictures\From Camera\a6000"
 #"C:\Users\John\Pictures\iCloud Photos\Downloads\dups"
 #"P:\Data\Pictures\From Camera\a6000"
 $dupPath = Join-Path -Path $path -ChildPath "dups"
-#$NASpathRoot = 'X:\Data\Pictures\Album'
-$backupPathRoot = 'S:\Data\Pictures\From Camera'
-$backupPath = $backupPathRoot
-$movePathRoot = 'P:\Data\Pictures\Album'
+$localPathRoot = 'P:\Data\Pictures'
+$NasPathRoot 'X:\Data\Pictures'
+
 $modelsFile = "$PSScriptRoot\EXIFmodels.txt"
 #$modelsFile = "X:\Data\_config\Pictures\EXIFmodels.txt"
-$backupFolders = @()
 $moveFiles = @()
 $images = @()
 $imageNumbers = @()
@@ -76,27 +74,22 @@ $exiftool = [System.Diagnostics.Process]::Start($psi)
 foreach($i in $images)
 {
 $imagePath = $i.FullName
-# enter exiftool parameters
-$exiftool.StandardInput.WriteLine("-Model")
-$exiftool.StandardInput.WriteLine("-s3")
+$xmpPath = $imagePath + ".xmp"
+# -srcfile 
+# %f.%e.xmp; tried using @ to represent original image file but can't get -srcfile to take multiple options
+# set datetime format to cast string as DateTime object
 $exiftool.StandardInput.WriteLine("-d")
-# get date in format to cast string as DateTime object
 $exiftool.StandardInput.WriteLine("%m/%d/%Y %H:%M")
 $exiftool.StandardInput.WriteLine("-DateTimeOriginal")
 $exiftool.StandardInput.WriteLine("$imagePath")
-# run exiftool
 $exiftool.StandardInput.WriteLine("-execute")
 # read first line of output
-$exifModel = $exiftool.StandardOutput.ReadLine()
-# if no EXIF Model ("{ready}"), skip i.e. continue to next photo in loop
-if ($exifModel -eq "{ready}") {
-    continue
-}
 $exifDTO = [DateTime]$exiftool.StandardOutput.ReadLine()
-$exiftool.StandardOutput.ReadLine()
-
+#todo: should be "{ready}"; could add check here
+$exiftool.StandardOutput.ReadLine() 
 $exiftool.StandardInput.WriteLine("Rating")
 $exiftool.StandardInput.WriteLine("s3")
+$exiftool.StandardInput.WriteLine("$xmpPath")
 $exiftool.StandardInput.WriteLine("-execute")
 $exifRating = $exiftool.StandardOutput.ReadLine()
 # if no Rating, assume "1" (i.e. for \Archive)
@@ -108,12 +101,31 @@ $exiftool.StandardOutput.ReadLine()
 $folderYear = $exifDTO.ToString("yyyy")
 $folderMonth = $exifDTO.ToString("yyyy-MM-MMMM")
 
-#copy to NAS based on star
-$xmpPath = $imagePath + ".xmp"
+#rating = 1: move to \archive
+#rating = 2: move to \album
+#rating = 3: move \studio
+#copy to NAS based on xmp Rating (i.e. stars)
+$destinationPath = switch ($exifRating) {
+    "1" {"archive"}
+    "2" {"album"}
+    "3" {"studio"}
+    Default {"archive"}
+}
+
+$copyPath = Join-Path -Path $NasPathRoot -ChildPath $destinationPath -AdditionalChildPath $folderYear $folderMonth
+if (!(Test-Path (Join-Path -Path $copyPath -ChildPath $i.Name) ))
+{
+    $j = Copy-Item -Path $i.FullName -Destination $newCopyPath -PassThru
+
+}
+else {
+    
+}
+
+$movePath = Join-Path -Path $localPathRoot -ChildPath $destinationPath -AdditionalChildPath $folderYear $folderMonth
 
 
-#move to local Album; check if exists, if so > dup
-$movePath = Join-Path -path $movePathRoot -ChildPath $folderYear $folderMonth
+
 
 if (!(Test-Path (Join-Path -Path $movePath -ChildPath $i.Name) ))
 {
