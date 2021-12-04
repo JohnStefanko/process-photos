@@ -20,7 +20,8 @@
 .LINK
     References: 
     exiftool stay_open: https://exiftool.org/exiftool_pod.html#Advanced-options
-
+    command to run while debugging: 
+    taskkill /IM "exiftool.exe" /F
 #>
 #[CmdletBinding()]
 #param (
@@ -45,17 +46,14 @@ $imageNumbers = @()
 $copyDupFiles = @()
 $moveDupFiles = @()
 $backupFolders = @()
-if(!(Test-Path $NasPathRoot))
-{
+if(!(Test-Path $NasPathRoot)) {
     "NAS drive not mapped!"
     Exit
 }
-if(!(Test-Path -Path $copyDupPath ))
-{
+if(!(Test-Path -Path $copyDupPath )) {
     New-Item -ItemType directory -Path $copyDupPath
 }
-if(!(Test-Path -Path $moveDupPath ))
-{
+if(!(Test-Path -Path $moveDupPath )) {
     New-Item -ItemType directory -Path $moveDupPath
 }
 
@@ -81,69 +79,19 @@ $psi.RedirectStandardError = $true
 
 $exiftool = [System.Diagnostics.Process]::Start($psi)
 
+#todo: make the below loop a function so it can be used for raw files first, then jpg files (that don't have matching raw files)
 foreach ($rawFile in $rawFiles) {
     $rawFilePath = $rawFile.FullName
+    $rawFileBaseName = $rawFile.BaseName
     $xmpFilePath = $rawFilePath + ".xmp"
     $xmpFile = Get-Item -Path $xmpFilePath
-    $jpgFile = Get-Item -Path $rawFilePath + ".jpg"
-
-    #get rating
-    $exiftool.StandardInput.WriteLine("Rating")
-    $exiftool.StandardInput.WriteLine("s3")
-    $exiftool.StandardInput.WriteLine("$xmpFilePath")
-    $exiftool.StandardInput.WriteLine("-execute")
-    $exifRating = $exiftool.StandardOutput.ReadLine()
-    # if no Rating, assume "1" (i.e. for \Archive)
-    if ($exifRating -eq "{ready}") {
-        $exifRating = "1"
-    }
-    $exiftool.StandardOutput.ReadLine()
-
-    # set datetime format to cast string as DateTime object
-    $exiftool.StandardInput.WriteLine("-d")
-    $exiftool.StandardInput.WriteLine("%m/%d/%Y %H:%M")
-    $exiftool.StandardInput.WriteLine("-DateTimeOriginal")
-    $exiftool.StandardInput.WriteLine("$rawFilePath")
-    $exiftool.StandardInput.WriteLine("-execute")
-    # read first line of output
-    $exifDTO = [DateTime]$exiftool.StandardOutput.ReadLine()
-    #todo: should be "{ready}"; could add check here
-    $exiftool.StandardOutput.ReadLine() 
-
-    $folderYear = $exifDTO.ToString("yyyy")
-    $folderMonth = $exifDTO.ToString("yyyy-MM-MMMM")
-
-    #copy matching files
-    #create mie file for raw
-    #move matching files
-
-    #rating = 1: move to \archive
-    #rating = 2: move to \album
-    #rating = 3: move \studio
-    #copy to NAS based on xmp Rating (i.e. stars)
-    $destinationPath = switch ($exifRating) {
-        "1" {"archive"}
-        "2" {"album"}
-        "3" {"studio"}
-        Default {"archive"}
-    }
-
-    $copyPath = Join-Path -Path $NasPathRoot -ChildPath $destinationPath -AdditionalChildPath $folderYear $folderMonth
-    if (!(Test-Path (Join-Path -Path $copyPath -ChildPath $i.Name) ))
-    {
-        $j = Copy-Item -Path $i.FullName -Destination $copyPath -PassThru
-        $backupFolders += $copyPath.ToString()
-    }
-    else {
-        $copyDupFiles += $i.Name
-    }
-
-    $miePath = Join-Path -Path $copyPath -ChildPath $i.Name + ".mie"
-    if (!(Test-Path ($miePath)))
-    {
-        # make .mie file; backup of original exif data
+    #$jpgFile = Get-Item -Path (Join-Path -Path $path -ChildPath $rawFileBaseName ".jpg")
+    $miePath = Join-Path -Path $path -ChildPath ($rawFile.Name + ".mie")
+    
+    # make backup mie file
+    if (!(Test-Path ($miePath))) {
         $exiftool.StandardInput.WriteLine("-tagsFromFile")
-        $exiftool.StandardInput.WriteLine("$imagepath")
+        $exiftool.StandardInput.WriteLine("$rawFilePath")
         $exiftool.StandardInput.WriteLine("-all:all")
         $exiftool.StandardInput.WriteLine("-icc_profile")
         $exiftool.StandardInput.WriteLine("$miePath")
@@ -157,53 +105,70 @@ foreach ($rawFile in $rawFiles) {
         }
     }
 
-    $movePath = Join-Path -Path $localPathRoot -ChildPath $destinationPath -AdditionalChildPath $folderYear $folderMonth
-    if (!(Test-Path (Join-Path -Path $movePath -ChildPath $i.Name) ))
-    {
-        $j = Move-Item -Path $i.FullName -Destination $movePath -PassThru
-        # write move info to file
-        $moveFiles += $j.FullName
-        $backupFolders += $movePath.ToString()
-        $i.Name
+    #get rating
+    $exiftool.StandardInput.WriteLine("-Rating")
+    $exiftool.StandardInput.WriteLine("-s3")
+    $exiftool.StandardInput.WriteLine("$xmpFilePath")
+    $exiftool.StandardInput.WriteLine("-execute")
+    $exifRating = $exiftool.StandardOutput.ReadLine()
+    # if no Rating, assume "1" (i.e. for \Archive)
+    if ($exifRating -eq "{ready}") {
+        $exifRating = "1"
     }
-    else {
-        $j = Move-Item -Path $i.FullName -Destination $dupPath -PassThru
-        $moveDupFiles += $i.Name
+    $exiftool.StandardOutput.ReadLine()
+
+    # set datetime format to cast string as DateTime object
+    $exiftool.StandardInput.WriteLine("-s3") # output format
+    $exiftool.StandardInput.WriteLine("-d") # date format
+    $exiftool.StandardInput.WriteLine("%m/%d/%Y %H:%M")
+    $exiftool.StandardInput.WriteLine("-DateTimeOriginal")
+    $exiftool.StandardInput.WriteLine("$rawFilePath")
+    $exiftool.StandardInput.WriteLine("-execute")
+    # read first line of output
+    $exifDTO = [DateTime]$exiftool.StandardOutput.ReadLine()
+    #todo: should be "{ready}"; could add check here
+    $exiftool.StandardOutput.ReadLine() 
+
+    $folderYear = $exifDTO.ToString("yyyy")
+    $folderMonth = $exifDTO.ToString("yyyy-MM-MMMM")
+
+    $imageSet = Get-ChildItem $path -Filter ($rawFileBaseName + ".*")
+    #copy/move based on xmp Rating (i.e. stars)
+    $destinationPath = switch ($exifRating) {
+        "1" {"archive"}
+        "2" {"album"}
+        "3" {"studio"}
+        Default {"archive"}
     }
+    $copyPath = Join-Path -Path $NasPathRoot -ChildPath $destinationPath $folderYear $folderMonth
+    $movePath = Join-Path -Path $localPathRoot -ChildPath $destinationPath $folderYear $folderMonth
 
-}
-
-
-#process image files that don't have .xmp file
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-foreach($i in $images)
-{
-$imagePath = $i.FullName
-# -srcfile 
-# %f.%e.xmp; tried using @ to represent original image file but can't get -srcfile to take multiple options
-
+    foreach ($imageFile in $imageSet) {
+        #copy
+        $tp = Join-Path -Path $copyPath -ChildPath $imageFile.Name
+        if (!(Test-Path ($tp) )) {
+            $j = Copy-Item -Path $imageFile.FullName -Destination $copyPath -PassThru
+            $backupFolders += $copyPath.ToString()
+        }
+        else {
+            $copyDupFiles += $imageFile.Name
+        }
+        #move
+        if (!(Test-Path (Join-Path -Path $movePath -ChildPath $imageFile.Name) )) {
+            $j = Move-Item -Path $imageFile.FullName -Destination $movePath -PassThru
+            # write move info to file
+            $moveFiles += $j.FullName
+            $backupFolders += $movePath.ToString()
+        }
+        else {
+            $j = Move-Item -Path $imageFile.FullName -Destination $dupPath -PassThru
+            $moveDupFiles += $imageFile.Name
+        }
+    }
 # end image loop
 }
+
+#process image files that don't have .xmp file
 
 # send command to shutdown
 $exiftool.StandardInput.WriteLine("-stay_open")
