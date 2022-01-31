@@ -32,7 +32,8 @@
 #    [string]
 #    $path
 #)
-$path = "P:\Data\Pictures\Archive\"
+$path = "P:\Data\Pictures\Test\cull"
+#"P:\Data\Pictures\Archive\"
 #"C:\Users\John\Pictures\iCloud Photos\Downloads"
 #"C:\Users\John\Pictures\iCloud Photos\Downloads\dups"
 #"P:\Data\Pictures\From Camera\a6000"
@@ -43,23 +44,23 @@ $NasPathRoot = 'X:\Data\Pictures'
 
 $modelsFile = "$PSScriptRoot\EXIFmodels.txt"
 #$modelsFile = "X:\Data\_config\Pictures\EXIFmodels.txt"
-$moveFiles = @()
-$images = @()
-$imageNumbers = @()
-$copyDupFiles = @()
-$moveDupFiles = @()
 $backupFolders = @()
-if(!(Test-Path -Path $moveDupPath )) {
-    New-Item -ItemType directory -Path $moveDupPath
-}
+$copyDupFiles = @()
+$images = @()
+$imageFiles = @()
+$imageSet = @()
+$imageNumbers = @()
+$moveDupFiles = @()
+$moveFiles = @()
+$rawFiles = @()
+#if(!(Test-Path -Path $moveDupPath )) {
+#    New-Item -ItemType directory -Path $moveDupPath
+#}
 
 # get exif model name > friendly model array
 $models = Get-Content -Raw $modelsFile | ConvertFrom-StringData
-
-$dng = Get-ChildItem $path -Filter *.dng
-$arw = Get-ChildItem $path -Filter *.arw
-$srw = Get-ChildItem $path -Filter *.srw
-$rawFiles = $dng + $arw + $srw
+$imageFiles = Get-ChildItem $path -Exclude *.mie, *.xmp
+$images = $imageFiles.BaseName | Sort-Object | Get-Unique
 
 # create Exiftool process
 $psi = New-Object System.Diagnostics.ProcessStartInfo
@@ -72,7 +73,70 @@ $psi.RedirectStandardError = $true
 
 $exiftool = [System.Diagnostics.Process]::Start($psi)
 
+# loop through all image basenames
 #todo: make the below loop a function so it can be used for raw files first, then jpg files (that don't have matching raw files)
+foreach ($image in $images) {
+    $imageSet = Get-ChildItem -Path $path -Filter ($image + ".*")
+    foreach ($imageFile in $imageSet) {
+        $imageFileExt = $imageFile.Extension.ToLower()
+        switch ($imageFileExt) {
+            ".arw" {  }
+            ".srw" {  }
+            ".jpg" {  }
+            Default {}
+        }
+    }
+    $jpgFilePath = $image + ".jpg"
+    $jpgFile = Get-ChildItem -Path $path -Filter ($jpgFilePath)
+    $rawFiles = Get-ChildItem -Path $path -Filter ($image + ".*") -Include ('.arw', '.srw')
+    $rawFile = $rawFiles[0]
+    $rawFilePath = $rawFile.FullName
+    if (Test-Path -Path $rawFilePath) {
+        # get date/time, label, rating from raw xmp file
+        $xmpFilePath = $rawFilePath + ".xmp"
+        $xmpFile = Get-Item -Path $xmpFilePath
+        
+    }
+    elseif (Test-Path -Path $jpgFilePath) {
+        #get date/time, label, rating from jpg xmp file
+    }
+    
+    #get date/time
+    foreach ($imageFile in $imageSet) {
+        
+        
+    }
+
+    #get label for \studio; copy all image files if "Blue"
+
+    #get rating
+
+
+
+
+}
+
+
+# send command to shutdown
+$exiftool.StandardInput.WriteLine("-stay_open")
+$exiftool.StandardInput.WriteLine("False")
+
+# wait for process to exit and output STDIN and STDOUT
+#$exiftool.StandardError.ReadToEnd()
+#$exiftool.StandardOutput.ReadToEnd()
+$exiftool.WaitForExit()
+$stdout = $exiftool.StandardError.ReadToEnd()
+$stdout
+
+
+
+
+
+
+
+
+
+
 foreach ($rawFile in $rawFiles) {
     $rawFilePath = $rawFile.FullName
     $rawFileBaseName = $rawFile.BaseName
@@ -94,6 +158,18 @@ foreach ($rawFile in $rawFiles) {
     }
     $exiftool.StandardOutput.ReadLine()
 
+    #get label
+    $exiftool.StandardInput.WriteLine("-Label")
+    $exiftool.StandardInput.WriteLine("-s3")
+    $exiftool.StandardInput.WriteLine("$xmpFilePath")
+    $exiftool.StandardInput.WriteLine("-execute")
+    $exifLabel = $exiftool.StandardOutput.ReadLine()
+    # if no Label, assume "" (i.e. no \Studio)
+    if ($exifLabel -eq "{ready}") {
+        $exifLabel = ""
+    }
+    $exiftool.StandardOutput.ReadLine()
+
     # set datetime format to cast string as DateTime object
     $exiftool.StandardInput.WriteLine("-s3") # output format
     $exiftool.StandardInput.WriteLine("-d") # date format
@@ -109,10 +185,18 @@ foreach ($rawFile in $rawFiles) {
     $folderYear = $exifDTO.ToString("yyyy")
     $folderMonth = $exifDTO.ToString("yyyy-MM-MMMM")
 
+    if ($exifLabel -eq "Blue") {
+        # copy all to \studio
+
+        #exit loop; next image
+    }
+
+
+   
     #copy based on xmp Rating (i.e. stars)
     switch ($exifRating) {
         "1" { 
-            #do nothing
+            #do nothing; leave in \archive
             $imageSet = @()
         }    
         "2" {
