@@ -53,12 +53,14 @@ $imageNumbers = @()
 $moveDupFiles = @()
 $moveFiles = @()
 $rawFiles = @()
+$rawFileExtensions = @()
 #if(!(Test-Path -Path $moveDupPath )) {
 #    New-Item -ItemType directory -Path $moveDupPath
 #}
 
 # get exif model name > friendly model array
 $models = Get-Content -Raw $modelsFile | ConvertFrom-StringData
+$rawFileExtensions = ('.srw', '.arw')
 $imageFiles = Get-ChildItem $path -Exclude *.mie, *.xmp
 $images = $imageFiles.BaseName | Sort-Object | Get-Unique
 
@@ -76,29 +78,18 @@ $exiftool = [System.Diagnostics.Process]::Start($psi)
 # loop through all image basenames
 #todo: make the below loop a function so it can be used for raw files first, then jpg files (that don't have matching raw files)
 foreach ($image in $images) {
-    $imageSet = Get-ChildItem -Path $path -Filter ($image + ".*")
-    foreach ($imageFile in $imageSet) {
-        $imageFileExt = $imageFile.Extension.ToLower()
-        switch ($imageFileExt) {
-            ".arw" {  }
-            ".srw" {  }
-            ".jpg" {  }
-            Default {}
+    $xmpFilePath = ""
+    $jpgFilePath =  Join-Path -path $path -ChildPath "$image.jpg"
+    if (Test-Path -Path $jpgFilePath) {
+        $jpgFile = Get-ChildItem -Path $jpgFilePath
+        $xmpFilePath = $jpgFilePath + ".xmp"
+    }
+    foreach ($fileExtension in $rawFileExtensions) {
+        $filePath = Join-Path -path $path -ChildPath ($image + $fileExtension)
+        if (Test-Path -Path $filePath) {
+            $rawFilePath = $filePath
+            $xmpFilePath = $filePath + ".xmp"
         }
-    }
-    $jpgFilePath = $image + ".jpg"
-    $jpgFile = Get-ChildItem -Path $path -Filter ($jpgFilePath)
-    $rawFiles = Get-ChildItem -Path $path -Filter ($image + ".*") -Include ('.arw', '.srw')
-    $rawFile = $rawFiles[0]
-    $rawFilePath = $rawFile.FullName
-    if (Test-Path -Path $rawFilePath) {
-        # get date/time, label, rating from raw xmp file
-        $xmpFilePath = $rawFilePath + ".xmp"
-        $xmpFile = Get-Item -Path $xmpFilePath
-        
-    }
-    elseif (Test-Path -Path $jpgFilePath) {
-        #get date/time, label, rating from jpg xmp file
     }
     
     #get date/time
