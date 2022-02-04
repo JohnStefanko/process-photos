@@ -78,34 +78,102 @@ $exiftool = [System.Diagnostics.Process]::Start($psi)
 # loop through all image basenames
 #todo: make the below loop a function so it can be used for raw files first, then jpg files (that don't have matching raw files)
 foreach ($image in $images) {
-    $xmpFilePath = ""
+    #todo: check if $image*.xmp exists, if not skip to next file
+    $xmpFilePath = "" # for rating, label
+    $exifFilePath = "" # for date time
     $jpgFilePath =  Join-Path -path $path -ChildPath "$image.jpg"
     if (Test-Path -Path $jpgFilePath) {
+        $exifFilePath = $jpgFilePath
         $jpgFile = Get-ChildItem -Path $jpgFilePath
         $xmpFilePath = $jpgFilePath + ".xmp"
     }
     foreach ($fileExtension in $rawFileExtensions) {
         $filePath = Join-Path -path $path -ChildPath ($image + $fileExtension)
         if (Test-Path -Path $filePath) {
+            $exifFilePath = $filePath
             $rawFilePath = $filePath
             $xmpFilePath = $filePath + ".xmp"
         }
     }
     
     #get date/time
-    foreach ($imageFile in $imageSet) {
-        
-        
-    }
-
-    #get label for \studio; copy all image files if "Blue"
+    # set datetime format to cast string as DateTime object
+    $exiftool.StandardInput.WriteLine("-s3") # output format
+    $exiftool.StandardInput.WriteLine("-d") # date format
+    $exiftool.StandardInput.WriteLine("%m/%d/%Y %H:%M")
+    $exiftool.StandardInput.WriteLine("-DateTimeOriginal")
+    $exiftool.StandardInput.WriteLine("$exifFilePath")
+    $exiftool.StandardInput.WriteLine("-execute")
+    # read first line of output
+    $exifDTO = [DateTime]$exiftool.StandardOutput.ReadLine()
+    #todo: should be "{ready}"; could add check here
+    $exiftool.StandardOutput.ReadLine() 
+  
+    $folderYear = $exifDTO.ToString("yyyy")
+    $folderMonth = $exifDTO.ToString("yyyy-MM-MMMM")
 
     #get rating
+    $exiftool.StandardInput.WriteLine("-Rating")
+    $exiftool.StandardInput.WriteLine("-s3")
+    $exiftool.StandardInput.WriteLine("$xmpFilePath")
+    $exiftool.StandardInput.WriteLine("-execute")
+    $exifRating = $exiftool.StandardOutput.ReadLine()
+    # if no Rating, assume "1" (i.e. for \Archive)
+    if ($exifRating -eq "{ready}") {
+        $exifRating = "1"
+    }
+    $exiftool.StandardOutput.ReadLine()
 
-
-
+    #get label for \studio; copy all image files if "Blue"
+    $exiftool.StandardInput.WriteLine("-Label")
+    $exiftool.StandardInput.WriteLine("-s3")
+    $exiftool.StandardInput.WriteLine("$xmpFilePath")
+    $exiftool.StandardInput.WriteLine("-execute")
+    $exifLabel = $exiftool.StandardOutput.ReadLine()
+    # if no Label, assume "" (i.e. no \Studio)
+    if ($exifLabel -eq "{ready}") {
+        $exifLabel = ""
+    }
+    $exiftool.StandardOutput.ReadLine()
+    
+    $exifLabel="Blue"
+    if ($exifLabel -eq "Blue") {
+        # copy all to \studio
+        $destinationPath = "studio"
+        $imageSet = Get-ChildItem $path -Filter ($image + ".*")
+        $copyPath = Join-Path -Path $path -ChildPath "$image.*"
+        $imageFilesCopy = Copy-Item -Path $copyPath -Destination "P:\Data\Pictures\Test\Copy-Test" -PassThru
+        
+        #exit loop; next image
+    }
+    else {
+        switch ($exifRating) {
+            "1" { 
+                #do nothing; leave in \archive
+                $imageSet = @()
+            }    
+            "2" {
+                #copy jpg, xmp to \album
+                $destinationPath = "album"
+                $imageSet = Get-ChildItem $path -Filter ($rawFileBaseName + ".*") -Exclude $rawFile.FullName
+            }
+            "3" {
+                #copy jpg, xmp to \album
+                $destinationPath = "album"
+                $imageSet = Get-ChildItem $path -Filter ($rawFileBaseName + ".*") -Exclude $rawFile.FullName
+            }
+            "{ready}"{
+                #this is exiftool output if no rating; do nothing
+            }
+            Default {
+                #do nothing
+                $imageSet = @()
+            }
+        }
+    }
 
 }
+
 
 
 # send command to shutdown
@@ -121,13 +189,6 @@ $stdout
 
 
 
-
-
-
-
-
-
-
 foreach ($rawFile in $rawFiles) {
     $rawFilePath = $rawFile.FullName
     $rawFileBaseName = $rawFile.BaseName
@@ -137,82 +198,9 @@ foreach ($rawFile in $rawFiles) {
     $jpgFile = Get-Item -Path $jpgFilePath
     $miePath = Join-Path -Path $path -ChildPath ($rawFile.Name + ".mie")
 
-    #get rating
-    $exiftool.StandardInput.WriteLine("-Rating")
-    $exiftool.StandardInput.WriteLine("-s3")
-    $exiftool.StandardInput.WriteLine("$xmpFilePath")
-    $exiftool.StandardInput.WriteLine("-execute")
-    $exifRating = $exiftool.StandardOutput.ReadLine()
-    # if no Rating, assume "1" (i.e. for \Archive)
-    if ($exifRating -eq "{ready}") {
-        $exifRating = "1"
-    }
-    $exiftool.StandardOutput.ReadLine()
-
-    #get label
-    $exiftool.StandardInput.WriteLine("-Label")
-    $exiftool.StandardInput.WriteLine("-s3")
-    $exiftool.StandardInput.WriteLine("$xmpFilePath")
-    $exiftool.StandardInput.WriteLine("-execute")
-    $exifLabel = $exiftool.StandardOutput.ReadLine()
-    # if no Label, assume "" (i.e. no \Studio)
-    if ($exifLabel -eq "{ready}") {
-        $exifLabel = ""
-    }
-    $exiftool.StandardOutput.ReadLine()
-
-    # set datetime format to cast string as DateTime object
-    $exiftool.StandardInput.WriteLine("-s3") # output format
-    $exiftool.StandardInput.WriteLine("-d") # date format
-    $exiftool.StandardInput.WriteLine("%m/%d/%Y %H:%M")
-    $exiftool.StandardInput.WriteLine("-DateTimeOriginal")
-    $exiftool.StandardInput.WriteLine("$rawFilePath")
-    $exiftool.StandardInput.WriteLine("-execute")
-    # read first line of output
-    $exifDTO = [DateTime]$exiftool.StandardOutput.ReadLine()
-    #todo: should be "{ready}"; could add check here
-    $exiftool.StandardOutput.ReadLine() 
-
-    $folderYear = $exifDTO.ToString("yyyy")
-    $folderMonth = $exifDTO.ToString("yyyy-MM-MMMM")
-
-    if ($exifLabel -eq "Blue") {
-        # copy all to \studio
-
-        #exit loop; next image
-    }
-
-
    
     #copy based on xmp Rating (i.e. stars)
-    switch ($exifRating) {
-        "1" { 
-            #do nothing; leave in \archive
-            $imageSet = @()
-        }    
-        "2" {
-            #copy jpg, xmp to album
-            $destinationPath = "album"
-            $imageSet = Get-ChildItem $path -Filter ($rawFileBaseName + ".*") -Exclude $rawFile.FullName
-        }
-        "3" {
-            #copy jpg, xmp to album
-            $destinationPath = "album"
-            $imageSet = Get-ChildItem $path -Filter ($rawFileBaseName + ".*") -Exclude $rawFile.FullName
-        }
-        "4" {
-            #move to studio
-            $destinationPath = "studio"
-            $imageSet = Get-ChildItem $path -Filter ($rawFileBaseName + ".*")
-        }
-        "{ready}"{
-            #this is exiftool output if no rating; do nothing
-        }
-        Default {
-            #do nothing
-            $imageSet = @()
-        }
-    }
+    
     $copyPath = Join-Path -Path $localPathRoot -ChildPath $destinationPath $folderYear $folderMonth
     foreach ($imageFile in $imageSet) {
         #copy
