@@ -32,18 +32,36 @@
 #    [string]
 #    $path
 #)
-$path = "P:\Data\Pictures\Test\cull"
+$path = "P:\Data\Pictures\Archive\2018\2018-08-August"
+#"P:\Data\Pictures\Test\cull"
+$picturesRootPath = "P:\Data\Pictures"
 #"P:\Data\Pictures\Archive\"
 #"C:\Users\John\Pictures\iCloud Photos\Downloads"
 #"C:\Users\John\Pictures\iCloud Photos\Downloads\dups"
 #"P:\Data\Pictures\From Camera\a6000"
+$exiftoolPath = "C:\ProgramData\chocolatey\bin\exiftool.exe"
+if (!(Test-Path -Path $exiftoolPath)) {
+    Write-Output "exiftool not found"
+    Exit
+}
+$magickPath = "C:\Program Files\ImageMagick-7.1.0-Q16-HDRI\magick.exe"
+if (!(Test-Path -Path $magickPath)) {
+    Write-Output "magick not found"
+    Exit
+}
+
 $copyDupPath = Join-Path -Path $path -ChildPath "copydups"
 $moveDupPath = Join-Path -Path $path -ChildPath "movedups"
 $localPathRoot = 'P:\Data\Pictures'
 $NasPathRoot = 'X:\Data\Pictures'
 
-$modelsFile = "$PSScriptRoot\EXIFmodels.txt"
 #$modelsFile = "X:\Data\_config\Pictures\EXIFmodels.txt"
+$modelsFile = "$PSScriptRoot\EXIFmodels.txt"
+if (!(Test-Path -Path $modelsFile)) {
+    Write-Output "model file not found"
+    Exit
+}
+
 $backupFolders = @()
 $copyDupFiles = @()
 $images = @()
@@ -61,12 +79,13 @@ $rawFileExtensions = @()
 # get exif model name > friendly model array
 $models = Get-Content -Raw $modelsFile | ConvertFrom-StringData
 $rawFileExtensions = ('.srw', '.arw')
-$imageFiles = Get-ChildItem $path -Exclude *.mie, *.xmp
+$magickArgs = "-compress", "JPEG", "-quality", "70","-sampling-factor", "4:2:2"
+$imageFiles = Get-ChildItem -Path $path -Exclude *.mie, *.xmp, *.tif, *.pp3, captureone
 $images = $imageFiles.BaseName | Sort-Object | Get-Unique
 
 # create Exiftool process
 $psi = New-Object System.Diagnostics.ProcessStartInfo
-$psi.FileName = "C:\ProgramData\chocolatey\bin\exiftool.exe"
+$psi.FileName = $exiftoolPath
 $psi.Arguments = "-stay_open True -@ -"; # note the second hyphen
 $psi.UseShellExecute = $false
 $psi.RedirectStandardInput = $true
@@ -85,14 +104,14 @@ foreach ($image in $images) {
     if (Test-Path -Path $jpgFilePath) {
         $exifFilePath = $jpgFilePath
         $jpgFile = Get-ChildItem -Path $jpgFilePath
-        $xmpFilePath = $jpgFilePath + ".xmp"
+        $xmpFilePath = "$jpgFilePath.xmp"
     }
     foreach ($fileExtension in $rawFileExtensions) {
         $filePath = Join-Path -path $path -ChildPath ($image + $fileExtension)
         if (Test-Path -Path $filePath) {
             $exifFilePath = $filePath
             $rawFilePath = $filePath
-            $xmpFilePath = $filePath + ".xmp"
+            $xmpFilePath = "$filePath.xmp"
         }
     }
     
@@ -134,17 +153,24 @@ foreach ($image in $images) {
     if ($exifLabel -eq "{ready}") {
         $exifLabel = ""
     }
-    $exiftool.StandardOutput.ReadLine()
+    else {
+        $exiftool.StandardOutput.ReadLine()
+    }
     
-    $exifLabel="Blue"
+    
+    <#
+    $exifLabel=""
+    $folderYear = "2022"
+    $folderMonth = "2002-02-February"
+    #>
+
     if ($exifLabel -eq "Blue") {
         # copy all to \studio
-        $destinationPath = "studio"
-        $imageSet = Get-ChildItem $path -Filter ($image + ".*")
+        $destination = "studio"
+        $destinationPath = Join-Path -Path $picturesRootPath -ChildPath $destination $folderYear $folderMonth
+        $imageSet = Get-ChildItem $path -Filter "$image.*"
         $copyPath = Join-Path -Path $path -ChildPath "$image.*"
-        $imageFilesCopy = Copy-Item -Path $copyPath -Destination "P:\Data\Pictures\Test\Copy-Test" -PassThru
-        
-        #exit loop; next image
+        $imageFilesCopy = Copy-Item -Path $copyPath -Destination $destinationPath -PassThru
     }
     else {
         switch ($exifRating) {
@@ -152,15 +178,24 @@ foreach ($image in $images) {
                 #do nothing; leave in \archive
                 $imageSet = @()
             }    
-            "2" {
+            {"2", "3", "4", "5"} {
                 #copy jpg, xmp to \album
-                $destinationPath = "album"
-                $imageSet = Get-ChildItem $path -Filter ($rawFileBaseName + ".*") -Exclude $rawFile.FullName
-            }
-            "3" {
-                #copy jpg, xmp to \album
-                $destinationPath = "album"
-                $imageSet = Get-ChildItem $path -Filter ($rawFileBaseName + ".*") -Exclude $rawFile.FullName
+                $destination = "album"
+                $destinationPath = Join-Path -Path $picturesRootPath -ChildPath $destination $folderYear $folderMonth 
+                if ($jpgFile.Length -gt 2MB) {
+                    #compress jpg
+                    $destinationMagickPath = Join-Path -Path $destinationPath -ChildPath $jpgFile.Name
+                    & $magickPath $jpgFilePath $magickArgs $destinationMagickPath
+                }
+                else {
+                    #copy jpeg
+                    $copyPath = Join-Path -Path $path -ChildPath "$image.jpg"
+                    Copy-Item -Path $copyPath -Destination $destinationPath
+                }
+                #copy xmp
+                #todo: find correct xmp to copy; for now copy all
+                $copyPath = Join-Path -Path $path -ChildPath "$image*.xmp"
+                Copy-Item -Path $copyPath -Destination $destinationPath            
             }
             "{ready}"{
                 #this is exiftool output if no rating; do nothing
@@ -171,7 +206,6 @@ foreach ($image in $images) {
             }
         }
     }
-
 }
 
 
@@ -188,7 +222,7 @@ $stdout = $exiftool.StandardError.ReadToEnd()
 $stdout
 
 
-
+<#
 foreach ($rawFile in $rawFiles) {
     $rawFilePath = $rawFile.FullName
     $rawFileBaseName = $rawFile.BaseName
@@ -292,7 +326,7 @@ foreach ($imageFile in $images) {
 # end image loop
 }
 
-
+#>
 
 
 
