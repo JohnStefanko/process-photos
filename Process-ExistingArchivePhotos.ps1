@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    Process culled photos in local Album folder based on star rating ("-Rating")
-        1: move to local \archive; get X: photo, move to X: \archive
-        2: already in \album; do nothing
-        3: move to local \studio; 
+    Process culled photos in local \Archive folder based on star rating ("-Rating")
+        Label = "Blue": copy all to \Studio
+        1: do nothing
+        2, 3, 4, 5: copy jpg to local \Album
 
 .DESCRIPTION
     Assumes Exiftool is installed via Chocolatey at "C:\ProgramData\chocolatey\bin\exiftool.exe."
@@ -26,12 +26,7 @@
     command to run while debugging: 
     taskkill /IM "exiftool.exe" /F
 #>
-#[CmdletBinding()]
-#param (
-#    [Parameter(Mandatory=$true,HelpMessage="Enter path for files to move")]
-#    [string]
-#    $path
-#)
+
 $path = "P:\Data\Pictures\Archive\2018\2018-08-August"
 #"P:\Data\Pictures\Test\cull"
 $picturesRootPath = "P:\Data\Pictures"
@@ -91,7 +86,6 @@ $psi.UseShellExecute = $false
 $psi.RedirectStandardInput = $true
 $psi.RedirectStandardOutput = $true
 $psi.RedirectStandardError = $true
-
 $exiftool = [System.Diagnostics.Process]::Start($psi)
 
 # loop through all image basenames
