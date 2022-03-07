@@ -2,9 +2,14 @@
 
 
 #>
-$newyear = "2021"
+
+$newyear = "2009"
+if ($newyear -eq "") {
+    $newyear = (Get-Date).Year
+}
 #$path = "C:\Users\John\Pictures\Test\darktable"
-$path = "X:\Data\Pictures"
+#$path = "X:\Data\Pictures"
+$path = "P:\Data\Pictures"
 
 $yearAlbumPath = Join-Path -Path $path -ChildPath "Album" -AdditionalChildPath $newyear
 $yearArchivePath = Join-Path -Path $path -ChildPath "Archive" -AdditionalChildPath $newyear
