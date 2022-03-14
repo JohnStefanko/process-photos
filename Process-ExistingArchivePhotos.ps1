@@ -26,7 +26,7 @@
     command to run while debugging: 
     taskkill /IM "exiftool.exe" /F
 #>
-$years = "2014"
+$years = "2018", "2019", "2020", "2021", "2022"
 $archiveRootPath = "P:\Data\Pictures\Archive"
 $rejectRootPath = "P:\Data\Pictures\_Rejected"
 $picturesRootPath = "P:\Data\Pictures"
@@ -77,11 +77,16 @@ foreach ($year in $years) {
     $archiveYearPath = Join-Path -Path $archiveRootPath $year
     $archiveMonthPaths = Get-ChildItem -Path $archiveYearPath -Directory
     foreach ($archivePath in $archiveMonthPaths) {
+        #debug specific month
+        #$archivePath = "P:\Data\Pictures\Archive\2014\2014-07-July"
         $archivePath.FullName >> $logFilePath
         $month = Split-Path -Path $archivePath -Leaf
         $folderYear = $year
         $folderMonth = $month
-        $imageFiles = Get-ChildItem -Path $archivePath -Exclude *.mie, *.xmp, *.tif, *.pp3, captureone
+        if ($folderMonth -eq "2018-08-August") {
+            Continue 
+        }
+        $imageFiles = Get-ChildItem -Path $archivePath -Exclude *.mie, *.xmp, *.tif, *.pp3, *.txt, captureone, "Ellen Senior Pictures", "2018-08-August"
         $images = $imageFiles.BaseName | Sort-Object | Get-Unique
 
 # loop through all image basenames
@@ -89,23 +94,23 @@ foreach ($year in $years) {
 foreach ($image in $images) {
     #todo: check if $image*.xmp exists, if not skip to next file
     # debug
-    # $image >> $logFilePath
+    #$image >> $logFilePath
     $xmpFilePath = "" # for rating, label
     $exifFilePath = "" # for date time
     $exifRating = ""
     $exifLabel = ""
     $xmpFilePath = Join-Path $archivePath -ChildPath "$image.xmp"
     if (!(Test-Path -Path $xmpFilePath)) {
-        "$xmpFilePath not found" >> $logFilePath
-        Exit 
+        "ERROR: $xmpFilePath not found" >> $logFilePath
+        Continue  
     }
     $jpgFilePath = Join-Path -path $archivePath -ChildPath "$image.jpg"
     if (Test-Path -Path $jpgFilePath) {
         $jpgFile = Get-ChildItem -Path $jpgFilePath
     }
     else {
-        "$jpgFilePath not found" >> $logFilePath
-        Exit 
+        "ERROR: $jpgFilePath not found" >> $logFilePath
+        Continue 
     }
 
     #get label for \studio; copy all image files if "Blue"
@@ -193,5 +198,5 @@ $stdout = $exiftool.StandardError.ReadToEnd()
 $stdout
 
 $studioFolders = $studioFolders | Sort-Object -Unique
-Set-Content -path (Join-Path -Path $picturesRootPath -ChildPath "studiofolders $timestamp.txt") -Value $studioFolders
+Set-Content -path (Join-Path -Path $archiveRootPath -ChildPath "studiofolders $currentDateTime.txt") -Value $studioFolders
 

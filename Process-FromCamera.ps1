@@ -25,29 +25,33 @@
 $path = "P:\Data\Pictures\From Camera\a6000"
 $backupPath = "C:\Data\Backup\From Camera"
 $cullPath = "P:\Data\Pictures\ToCull"
+$currentDateTime = Get-Date -Format "yyyy-MM-dd-HHmm"
+$logFilePath = Join-Path "P:\Data\Pictures\From Camera" -ChildPath "$currentDateTime.txt"
+
 $exiftoolPath = "C:\ProgramData\chocolatey\bin\exiftool.exe"
 if (!(Test-Path -Path $exiftoolPath)) {
-    Write-Output "exiftool not found"
+    "ERROR: exiftool not found" >> $logFilePath
     Exit
 }
 # $modelsFile = "X:\Data\_config\Pictures\EXIFmodels.txt"
 $modelsFile = "$PSScriptRoot\EXIFmodels.txt"
 if (!(Test-Path -Path $modelsFile)) {
-    Write-Output "model file not found"
+    "ERROR: model file not found" >> $logFilePath
     Exit
 }
 $images = @()
 $imageNumbers = @()
 # get exif model name > friendly model array
 $models = Get-Content -Raw $modelsFile | ConvertFrom-StringData
-$rawFileExtensions = (".arw")
-# $rawFileExtensions = ('.srw', '.arw')
+#$rawFileExtensions = (".arw")
+$rawFileExtensions = (".arw", ".srw", ".dng")
 $jpg = Get-ChildItem $path -Filter *.jpg
 $dng = Get-ChildItem $path -Filter *.dng
 $arw = Get-ChildItem $path -Filter *.arw
 $srw = Get-ChildItem $path -Filter *.srw
 $heic = Get-ChildItem $path -filter *.heic
 $imageFiles = $jpg + $dng + $heic + $arw
+$images = $imageFiles.BaseName
 #$images = Get-ChildItem -Path $path -Exclude *.mie, *.xmp, *.tif, *.pp3, captureone
 # $images = $imageFiles.BaseName | Sort-Object | Get-Unique
 
@@ -61,8 +65,19 @@ $psi.RedirectStandardOutput = $true
 $psi.RedirectStandardError = $true
 $exiftool = [System.Diagnostics.Process]::Start($psi)
 
-foreach($imageFile in $imageFiles) {
-    $imageFilePath = $imageFile.FullName
+foreach ($image in $images) {
+    # get jpeg if exists, or raw if not, for exif info
+    $imageFilePath = Join-Path -Path $path -ChildPath "$image.jpg"
+    $imageFile = Get-ChildItem -Path $imageFilePath
+    if (!(Test-Path -Path $imageFilePath)) {
+        foreach ($fileExtension in $rawFileExtensions) {
+            $imageFilePath = Join-Path -path $path -ChildPath "$image.$fileExtension"
+            if (Test-Path -Path $imageFilePath) {
+                continue
+            }
+        }
+    }
+
     # enter exiftool parameters
     $exiftool.StandardInput.WriteLine("-Model")
     $exiftool.StandardInput.WriteLine("-s3")
@@ -85,39 +100,42 @@ foreach($imageFile in $imageFiles) {
     $model = $models[$exifModel]
     # get original photo incremental number from original filename based on model type
     $imageNumber = switch ($model) {
-        "NX300" {$imageFile.Name.Substring(4,4)}
-        "a6000" {$imageFile.Name.Substring(4,4)}
-        "iPhone7Plus" {$imageFile.Name.Substring(4,4)}
-        "iPhone8Plus" {$imageFile.Name.Substring(4,4)}
+        "NX300" {$image.Substring(4,4)}
+        "a6000" {$image.Substring(4,4)}
+        "iPhone7Plus" {$image.Substring(4,4)}
+        "iPhone8Plus" {$image.Substring(4,4)}
         Default {(Get-Item $imageFile).Length}
     }
     $imageNumbers += $imageNumber
+    $imageFilesPath = Join-Path -Path $path -ChildPath "$image.*"
+    $imageFiles = Get-ChildItem -Path $imageFilesPath
+    $newImageBaseName = ($model, $exifDTO.ToString("yyyy-MM-dd"), $exifDTO.ToString("HHmm"), $imageNumber -join "_")
+    foreach ($imageFile in $imageFiles) {
+        $imageFileExtension = $imageFile.Extension # includes ".""
+        if (Test-Path (Join-Path -Path $path -ChildPath "$newImageBaseName.$imageFileExtension")) {
+            $newImageBaseName = ($newImageBaseName, $imageFile.Length -join "_")
+        }
+        #rename with EXIF data returning file with new name
+        $renamedImageFile = Rename-Item -path $imageFile.FullName -NewName "$newImageBaseName$imageFileExtension" -PassThru
 
-    # new file name with friendly model, exif date, and original number
-    $newName = ($model, $exifDTO.ToString("yyyy-MM-dd"), $exifDTO.ToString("HHmm"), $imageNumber -join "_") + $imageFile.Extension
-    # check if new name exists, if so add length string
-    if (Test-Path (Join-Path -Path $path -ChildPath $newName)) {
-        $newName = ($model, $exifDTO.ToString("yyyy-MM-dd"), $exifDTO.ToString("HHmm"), $imageNumber, (Get-Item $imageFile).Length -join "_") + $imageFile.Extension
+        #copy to backup folder; defaults to replace if file exists
+        $destinationCopyPath = Join-Path -Path $backupPath -ChildPath $renamedImageFile.Name
+        if (!(Test-Path $destinationCopyPath)) {
+            Copy-Item -Path $renamedImageFile.FullName -Destination $backupPath
+        }
+        else {
+            "INFO: $renamedImageFile.$imageFileExtension already exists in $backupPath" >> $logFilePath
+        }
+        # move to \ToCull
+        $destinationMovePath = Join-Path -Path $cullPath -ChildPath $renamedImageFile.Name
+        if (!(Test-Path $destinationMovePath)) {
+            Move-Item -Path $renamedImageFile.FullName -Destination $cullPath
+        }
+        else {
+            "INFO: $renamedImageFile.$imageFileExtension already exists in $cullPath" >> $logFilePath
+        }
     }
-    #rename with EXIF data returning file with new name
-    $renamedImageFile = Rename-Item -path $imageFile.FullName -NewName $newName -PassThru
-
-    #copy to backup folder; defaults to replace if file exists
-    $copyPath = Join-Path -Path $backupPath -ChildPath $newName
-    if (!(Test-Path $copyPath)) {
-        Copy-Item -Path $renamedImageFile.FullName -Destination $backupPath
-    }
-    else {
-        Write-Host $copyPath " already exists"
-    }
-    # move to \ToCull
-    $movePath = Join-Path -Path $cullPath -ChildPath $newName
-    if (!(Test-Path $movePath)) {
-        Move-Item -Path $renamedImageFile.FullName -Destination $cullPath
-    }
-    else {
-        Write-Host $movePath " already exists"
-    }
+    
 # end image loop
 }
 
