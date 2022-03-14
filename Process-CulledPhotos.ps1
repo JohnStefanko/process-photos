@@ -176,7 +176,7 @@ foreach ($image in $images) {
         $destination = "studio"
     }
     else {
-        # not Blue
+        # not Blue; copy compressed jpg to \Albums (local and NAS); move to \Archive
         $destination = switch ($exifRating) {
             "-1" {"reject"}
             "1" {"archive"}
