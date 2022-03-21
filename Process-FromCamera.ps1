@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Rename photos newly imported from camera to prepar for culling with FastRawViewer. Copy to second local disk drive for backup.
+    Rename photos newly imported from camera to prepare for culling with FastRawViewer. Copy to second local disk drive for backup.
 
 .DESCRIPTION
     Assumes Exiftool is installed via Chocolatey at "C:\ProgramData\chocolatey\bin\exiftool.exe."
@@ -15,7 +15,7 @@
     None.
 
 .EXAMPLE
-    ExifRename-Files -path C:\data\photos 
+    Process-FromCamera -path C:\data\photos 
 
 .LINK
     References: 
@@ -26,7 +26,7 @@ $path = "P:\Data\Pictures\From Camera\a6000"
 $backupPath = "C:\Data\Backup\From Camera"
 $cullPath = "P:\Data\Pictures\ToCull"
 $currentDateTime = Get-Date -Format "yyyy-MM-dd-HHmm"
-$logFilePath = Join-Path "P:\Data\Pictures\From Camera" -ChildPath "$currentDateTime.txt"
+$logFilePath = Join-Path "C:\Data\Logs\Pictures" -ChildPath "From-Camera_$currentDateTime.txt"
 
 $exiftoolPath = "C:\ProgramData\chocolatey\bin\exiftool.exe"
 if (!(Test-Path -Path $exiftoolPath)) {
@@ -78,25 +78,17 @@ foreach ($image in $images) {
         }
     }
 
-    # enter exiftool parameters
+    # get model from exiftool
+    # -s3: print values only (no tag names)
     $exiftool.StandardInput.WriteLine("-Model")
     $exiftool.StandardInput.WriteLine("-s3")
-    $exiftool.StandardInput.WriteLine("-d")
-    # get date in format to cast string as DateTime object
-    $exiftool.StandardInput.WriteLine("%m/%d/%Y %H:%M")
-    $exiftool.StandardInput.WriteLine("-DateTimeOriginal")
     $exiftool.StandardInput.WriteLine("$imageFilePath")
-    # run exiftool
     $exiftool.StandardInput.WriteLine("-execute")
-    # read first line of output
-    $exifModel = $exiftool.StandardOutput.ReadLine()
-    # if no EXIF Model ("{ready}"), skip i.e. continue to next photo in loop
-    if ($exifModel -eq "{ready}") {
-        continue
-    }
-    $exifDTO = [DateTime]$exiftool.StandardOutput.ReadLine()
-    $exiftool.StandardOutput.ReadLine()
-
+    $exiftoolOut = $exiftool.StandardOutput.ReadLine()
+    while ($exiftoolOut -ne "{ready}") {
+        $exifModel = $exiftoolOut
+        $exiftoolOut = $exiftool.StandardOutput.ReadLine()
+    }    
     $model = $models[$exifModel]
     # get original photo incremental number from original filename based on model type
     $imageNumber = switch ($model) {
@@ -107,12 +99,24 @@ foreach ($image in $images) {
         Default {(Get-Item $imageFile).Length}
     }
     $imageNumbers += $imageNumber
+    # get date from exiftool
+    # -d: date format
+    $exiftool.StandardInput.WriteLine("-d")
+    $exiftool.StandardInput.WriteLine("%m/%d/%Y %H:%M")
+    $exiftool.StandardInput.WriteLine("-DateTimeOriginal")
+    $exiftool.StandardInput.WriteLine("$imageFilePath")
+    $exiftool.StandardInput.WriteLine("-execute")
+    $exiftoolOut = $exiftool.StandardOutput.ReadLine()
+    while ($exiftoolOut -ne "{ready}") {
+        $exifDTO = [DateTime]$exiftoolOut
+        $exiftoolOut = $exiftool.StandardOutput.ReadLine()
+    }    
     $imageFilesPath = Join-Path -Path $path -ChildPath "$image.*"
     $imageFiles = Get-ChildItem -Path $imageFilesPath
     $newImageBaseName = ($model, $exifDTO.ToString("yyyy-MM-dd"), $exifDTO.ToString("HHmm"), $imageNumber -join "_")
     foreach ($imageFile in $imageFiles) {
         $imageFileExtension = $imageFile.Extension # includes ".""
-        if (Test-Path (Join-Path -Path $path -ChildPath "$newImageBaseName.$imageFileExtension")) {
+        if (Test-Path (Join-Path -Path $path -ChildPath "$newImageBaseName$imageFileExtension")) {
             $newImageBaseName = ($newImageBaseName, $imageFile.Length -join "_")
         }
         #rename with EXIF data returning file with new name
@@ -124,7 +128,7 @@ foreach ($image in $images) {
             Copy-Item -Path $renamedImageFile.FullName -Destination $backupPath
         }
         else {
-            "INFO: $renamedImageFile.$imageFileExtension already exists in $backupPath" >> $logFilePath
+            "INFO: " + $renamedImageFile.FullName + " already exists in $backupPath" >> $logFilePath
         }
         # move to \ToCull
         $destinationMovePath = Join-Path -Path $cullPath -ChildPath $renamedImageFile.Name
@@ -132,10 +136,10 @@ foreach ($image in $images) {
             Move-Item -Path $renamedImageFile.FullName -Destination $cullPath
         }
         else {
-            "INFO: $renamedImageFile.$imageFileExtension already exists in $cullPath" >> $logFilePath
+            "INFO: " + $renamedImageFile.FullName + "  already exists in $cullPath" >> $logFilePath
         }
+    # end image extensions loop
     }
-    
 # end image loop
 }
 

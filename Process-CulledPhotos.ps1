@@ -27,23 +27,23 @@
     taskkill /IM "exiftool.exe" /F
 #>
 # assume \studio, \album, \archive under same root
-$path = "P:\Data\Pictures\ToCull"
+$cullPath = "P:\Data\Pictures\ToCull"
 $picturesRootPath = "P:\Data\Pictures"
-$NasRootPath = "X:\Data\Pictures"
-$rawFileExtensions = (".arw")
-# $rawFileExtensions = ('.srw', '.arw')
+#$NasRootPath = "X:\Data\Pictures"
+#$rawFileExtensions = (".arw")
+$rawFileExtensions = (".arw", ".srw")
 $magickArgs = "-compress", "JPEG", "-quality", "70","-sampling-factor", "4:2:2"
 $exifToolPath = "C:\ProgramData\chocolatey\bin\exiftool.exe"
 $magickPath = "C:\Program Files\ImageMagick-7.1.0-Q16-HDRI\magick.exe"
 #$modelsFile = "X:\Data\_config\Pictures\EXIFmodels.txt"
-$modelsFile = "$PSScriptRoot\EXIFmodels.txt"
+#$modelsFile = "$PSScriptRoot\EXIFmodels.txt"
 $images = @()
 $backupFolders = @()
 
-if(!(Test-Path $NasRootPath)) {
-    "NAS drive not mapped!"
-    Exit
-}
+#if(!(Test-Path $NasRootPath)) {
+#    "NAS drive not mapped!"
+#    Exit
+#}
 if (!(Test-Path -Path $exifToolPath)) {
     Write-Output "exiftool not found"
     Exit
@@ -52,19 +52,19 @@ if (!(Test-Path -Path $magickPath)) {
     Write-Output "magick not found"
     Exit
 }
-if (!(Test-Path -Path $modelsFile)) {
-    Write-Output "model file not found"
-    Exit
-}
+#if (!(Test-Path -Path $modelsFile)) {
+#    Write-Output "model file not found"
+#    Exit
+#}
 
 # get exif model name > friendly model array
 $models = Get-Content -Raw $modelsFile | ConvertFrom-StringData
 
-$jpg = Get-ChildItem $path -Filter *.jpg
-$dng = Get-ChildItem $path -Filter *.dng
-$arw = Get-ChildItem $path -Filter *.arw
-$srw = Get-ChildItem $path -Filter *.srw
-$heic = Get-ChildItem $path -filter *.heic
+$jpg = Get-ChildItem $cullPath -Filter *.jpg
+$dng = Get-ChildItem $cullPath -Filter *.dng
+$arw = Get-ChildItem $cullPath -Filter *.arw
+$srw = Get-ChildItem $cullPath -Filter *.srw
+$heic = Get-ChildItem $cullPath -filter *.heic
 $imageFiles = $jpg + $dng + $heic + $arw
 $rawFiles = $dng + $arw + $srw
 $images = $imageFiles.BaseName | Sort-Object | Get-Unique
@@ -85,30 +85,41 @@ foreach ($image in $images) {
     #todo: check if $image*.xmp exists, if not skip to next file
     $xmpFilePath = "" # for rating, label
     $exifFilePath = "" # for date time
-    $jpgFilePath =  Join-Path -path $path -ChildPath "$image.jpg"
+    $jpgFilePath =  Join-Path -Path $cullPath -ChildPath "$image.jpg"
+    $xmpFilePath = Join-Path -Path $cullPath -ChildPath "$image.xmp"
     $jpgFileExists = Test-Path -Path $jpgFilePath
+    $xmpFileExists = Test-Path -Path $xmpFilePath
     if ($jpgFileExists) {
         $exifFilePath = $jpgFilePath
         $jpgFile = Get-ChildItem -Path $jpgFilePath
-        $xmpFilePath = "$jpgFilePath.xmp"
-    }
-    foreach ($fileExtension in $rawFileExtensions) {
-        $filePath = Join-Path -path $path -ChildPath ($image + $fileExtension)
-        if (Test-Path -Path $filePath) {
-            $exifFilePath = $filePath
-            $rawFilePath = $filePath
-            $xmpFilePath = "$filePath.xmp"
-        }
-    }
-    if (Test-Path -Path $xmpFilePath) {
-        $xmpFile = Get-ChildItem -Path $xmpFilePath
     }
     else {
-        Write-Host $xmpFilePath + " not found"
-        continue
+        if ($xmpFileExists) {
+            $exifFilePath = $xmpFilePath
+        }
+        else {
+            "INFO: no EXIF info for $image" >> $logFilePath
+            continue
+        }
     }
+    
+    #foreach ($fileExtension in $rawFileExtensions) {
+    #    $filePath = Join-Path -path $path -ChildPath ($image + $fileExtension)
+    #    if (Test-Path -Path $filePath) {
+    #        $exifFilePath = $filePath
+    #        $rawFilePath = $filePath
+    #        $xmpFilePath = "$filePath.xmp"
+    #    }
+    #}
+    #if (Test-Path -Path $xmpFilePath) {
+    #    $xmpFile = Get-ChildItem -Path $xmpFilePath
+    #}
+    #else {
+    #    Write-Host $xmpFilePath + " not found"
+    #    continue
+    #}
     # make backup mie file
-    $miePath = Join-Path -Path $path -ChildPath "$image.mie"
+    $miePath = Join-Path -Path $cullPath -ChildPath "$image.mie"
     if (!(Test-Path ($miePath))) {
         $exiftool.StandardInput.WriteLine("-tagsFromFile")
         $exiftool.StandardInput.WriteLine("$exifFilePath")
@@ -116,10 +127,7 @@ foreach ($image in $images) {
         $exiftool.StandardInput.WriteLine("-icc_profile")
         $exiftool.StandardInput.WriteLine("$miePath")
         $exiftool.StandardInput.WriteLine("-execute")
-        #$exiftoolError = $exiftool.StandardError.ReadLine()
-        #$exiftoolError
         $exiftoolOut = $exiftool.StandardOutput.ReadLine()
-        # $exiftoolOut
         while ($exiftoolOut -ne "{ready}") {
             $exiftoolOut = $exiftool.StandardOutput.ReadLine()
         }
@@ -169,7 +177,7 @@ foreach ($image in $images) {
     # if no Label, assume "" (i.e. no \Studio)
     
     # for \archive
-    $movePath = Join-Path -Path $path -ChildPath "$image.*"
+    $movePath = Join-Path -Path $cullPath -ChildPath "$image.*"
     $moveDestinationPath = Join-Path -Path $picturesRootPath -ChildPath "archive" $folderYear $folderMonth
     if ($exifLabel -eq "Blue") {
         # copy all to \studio; move to \archive
@@ -192,14 +200,14 @@ foreach ($image in $images) {
     $backupFolders += $destinationPath.ToString()
     switch ($destination) {
         "studio" {
-            $copyPath = Join-Path -Path $path -ChildPath "$image.*"
+            $copyPath = Join-Path -Path $cullPath -ChildPath "$image.*"
             Copy-Item -Path $copyPath -Destination $destinationPath
             # move to \archive
             Move-Item -Path $movePath -Destination $moveDestinationPath
         }
         "reject" {
             # rejects; delete
-            $removePath = Join-Path -Path $path -ChildPath "$image.*"
+            $removePath = Join-Path -Path $cullPath -ChildPath "$image.*"
             Remove-Item -Path $removePath 
         }
         "archive" { 
@@ -214,7 +222,7 @@ foreach ($image in $images) {
             }
             #copy xmp
             #todo: find correct xmp to copy; for now copy all
-            $copyPath = Join-Path -Path $path -ChildPath "$image*.xmp"
+            $copyPath = Join-Path -Path $cullPath -ChildPath "$image*.xmp"
             Copy-Item -Path $copyPath -Destination $destinationPath
             Move-Item -Path $movePath -Destination $moveDestinationPath
         }
