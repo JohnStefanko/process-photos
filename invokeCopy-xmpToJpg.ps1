@@ -60,9 +60,7 @@ foreach ($year in $years) {
         $images = $xmpFiles.BaseName | Sort-Object | Get-Unique
 
 # loop through all image basenames
-#todo: make the below loop a function so it can be used for raw files first, then jpg files (that don't have matching raw files)
 foreach ($image in $images) {
-    #todo: check if $image*.xmp exists, if not skip to next file
     # debug
     # create Exiftool process
     

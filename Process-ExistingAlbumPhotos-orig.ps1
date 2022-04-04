@@ -72,7 +72,6 @@ $psi.RedirectStandardError = $true
 
 $exiftool = [System.Diagnostics.Process]::Start($psi)
 
-#todo: make the below loop a function so it can be used for raw files first, then jpg files (that don't have matching raw files)
 foreach ($rawFile in $rawFiles) {
     $rawFilePath = $rawFile.FullName
     $rawFileBaseName = $rawFile.BaseName
@@ -102,7 +101,7 @@ foreach ($rawFile in $rawFiles) {
     $exiftool.StandardInput.WriteLine("-execute")
     # read first line of output
     $exifDTO = [DateTime]$exiftool.StandardOutput.ReadLine()
-    #todo: should be "{ready}"; could add check here
+    #TODO: add improved exiftool {ready} processing
     $exiftool.StandardOutput.ReadLine() 
 
     $folderYear = $exifDTO.ToString("yyyy")
@@ -184,7 +183,7 @@ foreach ($imageFile in $images) {
     $exiftool.StandardInput.WriteLine("-execute")
     # read first line of output
     $exifDTO = [DateTime]$exiftool.StandardOutput.ReadLine()
-    #todo: should be "{ready}"; could add check here
+    #TODO: add improved {ready} exiftool processing
     $exiftool.StandardOutput.ReadLine() 
 
     $folderYear = $exifDTO.ToString("yyyy")

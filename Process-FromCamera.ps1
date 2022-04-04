@@ -26,6 +26,7 @@ $path = "P:\Data\Pictures\From Camera\a6000"
 $backupPath = "C:\Data\Backup\From Camera"
 $cullPath = "P:\Data\Pictures\ToCull"
 $currentDateTime = Get-Date -Format "yyyy-MM-dd-HHmm"
+#EXAMPLE: logfile
 $logFilePath = Join-Path "C:\Data\Logs\Pictures" -ChildPath "From-Camera_$currentDateTime.txt"
 
 $exiftoolPath = "C:\ProgramData\chocolatey\bin\exiftool.exe"
@@ -45,6 +46,7 @@ $imageNumbers = @()
 $models = Get-Content -Raw $modelsFile | ConvertFrom-StringData
 #$rawFileExtensions = (".arw")
 $rawFileExtensions = (".arw", ".srw", ".dng")
+#TODO: use array of image extension types and loop $imageFiles += extension
 $jpg = Get-ChildItem $path -Filter *.jpg
 $dng = Get-ChildItem $path -Filter *.dng
 $arw = Get-ChildItem $path -Filter *.arw
@@ -52,10 +54,10 @@ $srw = Get-ChildItem $path -Filter *.srw
 $heic = Get-ChildItem $path -filter *.heic
 $imageFiles = $jpg + $dng + $heic + $arw
 $images = $imageFiles.BaseName
-#$images = Get-ChildItem -Path $path -Exclude *.mie, *.xmp, *.tif, *.pp3, captureone
-# $images = $imageFiles.BaseName | Sort-Object | Get-Unique
+$images = $imageFiles.BaseName | Sort-Object | Get-Unique
 
 # create Exiftool process
+#EXAMPLE: use of System.Diagnostics.ProcessStartInfo and Process Start
 $psi = New-Object System.Diagnostics.ProcessStartInfo
 $psi.FileName = $exiftoolPath
 $psi.Arguments = "-stay_open True -@ -"; # note the second hyphen
@@ -80,6 +82,7 @@ foreach ($image in $images) {
 
     # get model from exiftool
     # -s3: print values only (no tag names)
+    #EXAMPLE: exiftool process stayopen usage with improved {ready} handling
     $exiftool.StandardInput.WriteLine("-Model")
     $exiftool.StandardInput.WriteLine("-s3")
     $exiftool.StandardInput.WriteLine("$imageFilePath")
@@ -88,9 +91,12 @@ foreach ($image in $images) {
     while ($exiftoolOut -ne "{ready}") {
         $exifModel = $exiftoolOut
         $exiftoolOut = $exiftool.StandardOutput.ReadLine()
-    }    
+    }
+    #EXAMPLE: use of array to set variable
     $model = $models[$exifModel]
     # get original photo incremental number from original filename based on model type
+    #EXAMPLE: getting original photo number
+    #TODO: make function to get original photo number
     $imageNumber = switch ($model) {
         "NX300" {$image.Substring(4,4)}
         "a6000" {$image.Substring(4,4)}

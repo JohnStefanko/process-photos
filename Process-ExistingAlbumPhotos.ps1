@@ -69,7 +69,6 @@ foreach ($year in $years) {
         $folderMonth = $month
         $imageFiles = Get-ChildItem -Path $path -Filter *.jpg
 
-#todo: make the below loop a function so it can be used for raw files first, then jpg files (that don't have matching raw files)
 foreach ($imageFile in $imageFiles) {
     $exifLabel = ""
     $exifRating = ""

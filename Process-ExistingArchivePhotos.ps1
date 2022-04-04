@@ -90,9 +90,7 @@ foreach ($year in $years) {
         $images = $imageFiles.BaseName | Sort-Object | Get-Unique
 
 # loop through all image basenames
-#todo: make the below loop a function so it can be used for raw files first, then jpg files (that don't have matching raw files)
 foreach ($image in $images) {
-    #todo: check if $image*.xmp exists, if not skip to next file
     # debug
     #$image >> $logFilePath
     $xmpFilePath = "" # for rating, label
@@ -169,7 +167,6 @@ foreach ($image in $images) {
                     Copy-Item -Path $copySourcePath -Destination $destinationPath
                 }
                 #copy xmp
-                #todo: find correct xmp to copy; for now copy all
                 $copySourcePath = Join-Path -Path $archivePath -ChildPath "$image.xmp"
                 Copy-Item -Path $copySourcePath -Destination $destinationPath
                 }
