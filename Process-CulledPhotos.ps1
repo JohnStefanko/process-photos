@@ -29,14 +29,14 @@
 # assume \studio, \album, \archive under same root
 $cullPath = "P:\Data\Pictures\ToCull"
 $picturesRootPath = "P:\Data\Pictures"
+$currentDateTime = Get-Date -Format "yyyy-MM-dd-HHmm"
+$logFilePath = Join-Path "C:\Data\Logs\Pictures" -ChildPath "CulledPhotos_$currentDateTime.txt"
 #$NasRootPath = "X:\Data\Pictures"
 #$rawFileExtensions = (".arw")
 $rawFileExtensions = (".arw", ".srw")
 $magickArgs = "-compress", "JPEG", "-quality", "70","-sampling-factor", "4:2:2"
 $exifToolPath = "C:\ProgramData\chocolatey\bin\exiftool.exe"
 $magickPath = "C:\Program Files\ImageMagick-7.1.0-Q16-HDRI\magick.exe"
-#$modelsFile = "X:\Data\_config\Pictures\EXIFmodels.txt"
-#$modelsFile = "$PSScriptRoot\EXIFmodels.txt"
 $images = @()
 $backupFolders = @()
 
@@ -49,16 +49,13 @@ if (!(Test-Path -Path $magickPath)) {
     Exit
 }
 
-# get exif model name > friendly model array
-$models = Get-Content -Raw $modelsFile | ConvertFrom-StringData
-
 $jpg = Get-ChildItem $cullPath -Filter *.jpg
 $dng = Get-ChildItem $cullPath -Filter *.dng
 $arw = Get-ChildItem $cullPath -Filter *.arw
 $srw = Get-ChildItem $cullPath -Filter *.srw
 $heic = Get-ChildItem $cullPath -filter *.heic
 $imageFiles = $jpg + $dng + $heic + $arw
-$rawFiles = $dng + $arw + $srw
+#$rawFiles = $dng + $arw + $srw
 $images = $imageFiles.BaseName | Sort-Object | Get-Unique
 
 # create Exiftool process
@@ -143,7 +140,6 @@ foreach ($image in $images) {
         $exifLabel = $exiftoolOut
         $exiftoolOut = $exiftool.StandardOutput.ReadLine()
     }
-    # if no Label, assume "" (i.e. no \Studio)
     
     # for \archive
     $movePath = Join-Path -Path $cullPath -ChildPath "$image.*"

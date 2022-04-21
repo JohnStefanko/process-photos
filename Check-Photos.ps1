@@ -24,9 +24,15 @@
     taskkill /IM "exiftool.exe" /F
 #>
 # assume \studio, \album, \archive under same root
-$checkPath = "P:\Data\Pictures\ToCheck"
+#$checkPath = "P:\Data\Pictures\ToCheck"
+#$checkPath = "P:\Data\Pictures\Archive\2018\aug"
+$checkPath = "P:\Data\Pictures\Archive\2002\Posted"
 $picturesRootPath = "P:\Data\Pictures"
 #$NasRootPath = "X:\Data\Pictures"
+$currentDateTime = Get-Date -Format "yyyy-MM-dd-HHmm"
+$logFilePath = Join-Path "C:\Data\Logs\Pictures" -ChildPath "Check-Photos_$currentDateTime.txt"
+"INFO: Starting" >> $logFilePath
+
 $exiftoolPath = "C:\ProgramData\chocolatey\bin\exiftool.exe"
 if (!(Test-Path -Path $exiftoolPath)) {
     "ERROR: exiftool not found" >> $logFilePath
@@ -34,7 +40,7 @@ if (!(Test-Path -Path $exiftoolPath)) {
 }
 $checkInFolders = "album", "archive", "studio"
 $images = @()
-$backupFolders = @()
+$missingImageFiles = @()
 
 $jpg = Get-ChildItem $checkPath -Filter *.jpg
 $dng = Get-ChildItem $checkPath -Filter *.dng
@@ -42,7 +48,6 @@ $arw = Get-ChildItem $checkPath -Filter *.arw
 $srw = Get-ChildItem $checkPath -Filter *.srw
 $heic = Get-ChildItem $checkPath -filter *.heic
 $imageFiles = $jpg + $dng + $heic + $arw + $srw
-$rawFiles = $dng + $arw + $srw
 
 $psi = New-Object System.Diagnostics.ProcessStartInfo
 $psi.FileName = $exiftoolPath
@@ -53,8 +58,8 @@ $psi.RedirectStandardOutput = $true
 $psi.RedirectStandardError = $true
 $exiftool = [System.Diagnostics.Process]::Start($psi)
 
-
 foreach ($imageFile in $imageFiles) {
+    $exifFilePath = $imageFile.FullName
     #get date/time
     # set datetime format to cast string as DateTime object
     $exifDTO = ""
@@ -79,73 +84,21 @@ foreach ($imageFile in $imageFiles) {
         $checkFilePath = Join-Path -Path $checkInPath -ChildPath $imageFile.Name
         if (Test-Path -Path $checkFilePath) {
             $fileExists = $true
-            
-        }
-        
-    }
-    $checkInPath = Join-Path -Path $checkPath -ChildPath "$image.*"
-    $moveDestinationPath = Join-Path -Path $picturesRootPath -ChildPath "archive" $folderYear $folderMonth
-    if ($exifLabel -eq "Blue") {
-        # copy all to \studio; move to \archive
-        $destination = "studio"
-    }
-    else {
-        # not Blue; copy compressed jpg to \Albums (local and NAS); move to \Archive
-        $destination = switch ($exifRating) {
-            "-1" {"reject"}
-            "1" {"archive"}
-            "2" {"album"}
-            "3" {"album"}
-            "4" {"album"}
-            "5" {"album"}
-            "{ready}" {"none"}
-            Default {}
+            "INFO: " + $imageFile.Name + " exists in " + $checkInPath >> $logFilePath
         }
     }
-    $destinationPath = Join-Path -Path $picturesRootPath -ChildPath $destination $folderYear $folderMonth
-    $backupFolders += $destinationPath.ToString()
-    switch ($destination) {
-        "studio" {
-            $copyPath = Join-Path -Path $checkPath -ChildPath "$image.*"
-            Copy-Item -Path $copyPath -Destination $destinationPath -Exclude "*.mie"
-            # move to \archive
-            Move-Item -Path $movePath -Destination $moveDestinationPath 
-        }
-        "reject" {
-            # rejects; delete
-            $removePath = Join-Path -Path $checkPath -ChildPath "$image.*"
-            Remove-Item -Path $removePath 
-        }
-        "archive" { 
-            # move to \archive
-            Move-Item -Path $movePath -Destination $moveDestinationPath
-        }    
-        "album" {
-            #compress jpg, copy xmp to \album; move to \archive
-            if ($jpgFileExists) {
-                $destinationMagickPath = Join-Path -Path $destinationPath -ChildPath $jpgFile.Name
-                & $magickPath $jpgFilePath $magickArgs $destinationMagickPath
-            }
-            #copy xmp
-            #i don't need .xmp files in \album
-            #$copyPath = Join-Path -Path $checkPath -ChildPath "$image.xmp"
-            #Copy-Item -Path $copyPath -Destination $destinationPath
-            Move-Item -Path $movePath -Destination $moveDestinationPath
-        }
-        "none" {
-            Write-Host $image " not rated"
-        }
-        Default {
-            #do nothing
-        }
+    if (!($fileExists)) {
+        #"WARNING: " + $imageFile.Name + " NOT FOUND " >> $logFilePath
+        $missingImageFiles += $imageFile.Name
     }
-$exifRating = ""
-$exifLabel = ""
-$xmpFilePath = "" # for rating, label
-$exifFilePath = "" # for date time
-$jpgFilePath = ""
-# end image loop
+
+    $fileExists = $false
 }
+
+foreach ($missingImageFile in $missingImageFiles) {
+    "WARNING: " + $missingImageFile + " NOT FOUND " >> $logFilePath
+}
+# end image loop
 
 # send command to shutdown
 $exiftool.StandardInput.WriteLine("-stay_open")
@@ -154,8 +107,5 @@ $exiftool.WaitForExit()
 $stdout = $exiftool.StandardError.ReadToEnd()
 $stdout
 
-$backupFolders = $backupFolders | Sort-Object -Unique
-Set-Content -path (Join-Path -Path $path -ChildPath "backupfolders.txt") -Value $backupFolders
-$backupFolders
 
 

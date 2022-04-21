@@ -23,7 +23,7 @@
 
 #>
 $path = "P:\Data\Pictures\From Camera\a6000"
-$backupPath = "C:\Data\Backup\From Camera"
+$backupPath = "C:\Data\Backup\From Camera\2022-04-12"
 $cullPath = "P:\Data\Pictures\ToCull"
 $currentDateTime = Get-Date -Format "yyyy-MM-dd-HHmm"
 #EXAMPLE: logfile
@@ -110,6 +110,7 @@ foreach ($image in $images) {
     $exiftool.StandardInput.WriteLine("-d")
     $exiftool.StandardInput.WriteLine("%m/%d/%Y %H:%M")
     $exiftool.StandardInput.WriteLine("-DateTimeOriginal")
+    $exiftool.StandardInput.WriteLine("-s3")
     $exiftool.StandardInput.WriteLine("$imageFilePath")
     $exiftool.StandardInput.WriteLine("-execute")
     $exiftoolOut = $exiftool.StandardOutput.ReadLine()
