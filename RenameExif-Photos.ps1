@@ -23,15 +23,7 @@
 
 #>
 $path = "P:\Data\Pictures\From Camera\a6000"
-$cullPath = "P:\Data\Pictures\ToCull"
 $currentDateTime = Get-Date -Format "yyyy-MM-dd-HHmm"
-$backupPath = "C:\Data\Backup\From Camera\$currentDateTime"
-if(!(Test-Path -Path $backupPath ))
-{
-    New-Item -ItemType directory -Path $backupPath
-}
-
-#EXAMPLE: logfile
 $logFilePath = Join-Path "C:\Data\Logs\Pictures" -ChildPath "From-Camera_$currentDateTime.txt"
 
 $exiftoolPath = "C:\ProgramData\chocolatey\bin\exiftool.exe"
@@ -105,6 +97,7 @@ foreach ($image in $images) {
     $imageNumber = switch ($model) {
         "NX300" {$image.Substring(4,4)}
         "a6000" {$image.Substring(4,4)}
+        "a6400m" {$image.Substring(4,4)}
         "iPhone7Plus" {$image.Substring(4,4)}
         "iPhone8Plus" {$image.Substring(4,4)}
         Default {(Get-Item $imageFile).Length}

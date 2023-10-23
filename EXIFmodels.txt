@@ -2,4 +2,6 @@ NX300=NX300
 iPhone 7 Plus=iPhone7Plus
 iPhone 8 Plus=iPhone8Plus
 ILCE-6000=a6000
+ILCE-6400=a6400
+ILCE-6400m=a6400m
 SM-J337T=SM-J337T
