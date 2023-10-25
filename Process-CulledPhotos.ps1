@@ -29,14 +29,21 @@
 # assume \studio, \album, \archive under same root
 $cullPath = "P:\Data\Pictures\ToCull"
 $picturesRootPath = "P:\Data\Pictures"
+$albumPath = Join-Path -Path $picturesRootPath -ChildPath "album"
+$archivePath = Join-Path -Path $picturesRootPath -ChildPath "archive"
+$studioPath = Join-Path -Path $picturesRootPath -ChildPath "studio"
+$rejectPath= Join-Path -Path $picturesRootPath -ChildPath "reject"
+
+
 $currentDateTime = Get-Date -Format "yyyy-MM-dd-HHmm"
 $logFilePath = Join-Path "C:\Data\Logs\Pictures" -ChildPath "CulledPhotos_$currentDateTime.txt"
 #$NasRootPath = "X:\Data\Pictures"
 #$rawFileExtensions = (".arw")
 $rawFileExtensions = (".arw", ".srw")
+#TODO: Rewrite so magick not version/path dependent
+$magickPath = "C:\Program Files\ImageMagick-7.1.1-Q16-HDRI\magick.exe"
 $magickArgs = "-compress", "JPEG", "-quality", "70","-sampling-factor", "4:2:2"
 $exifToolPath = "C:\ProgramData\chocolatey\bin\exiftool.exe"
-$magickPath = "C:\Program Files\ImageMagick-7.1.0-Q16-HDRI\magick.exe"
 $images = @()
 $backupFolders = @()
 
@@ -143,7 +150,9 @@ foreach ($image in $images) {
     
     # for \archive
     $movePath = Join-Path -Path $cullPath -ChildPath "$image.*"
-    $moveDestinationPath = Join-Path -Path $picturesRootPath -ChildPath "archive" $folderYear $folderMonth
+    $moveDestinationPath = Join-Path -Path $archivePath -ChildPath $folderYear $folderMonth
+    # for \studio
+    $albumDestinationPath = Join-Path -Path $albumPath -ChildPath $folderYear $folderMonth
     if ($exifLabel -eq "Blue") {
         # copy all to \studio; move to \archive
         $destination = "studio"
@@ -167,6 +176,11 @@ foreach ($image in $images) {
         "studio" {
             $copyPath = Join-Path -Path $cullPath -ChildPath "$image.*"
             Copy-Item -Path $copyPath -Destination $destinationPath -Exclude "*.mie"
+            #jpg to \album
+            if ($jpgFileExists) {
+                $destinationMagickPath = Join-Path -Path $albumDestinationPath -ChildPath $jpgFile.Name
+                & $magickPath $jpgFilePath $magickArgs $destinationMagickPath
+            }
             # move to \archive
             Move-Item -Path $movePath -Destination $moveDestinationPath 
         }
