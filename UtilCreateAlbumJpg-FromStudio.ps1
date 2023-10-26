@@ -24,9 +24,11 @@
     command to run while debugging: 
     taskkill /IM "exiftool.exe" /F
 #>
-$years = "2018", "2019", "2020", "2021", "2022"
+$years = "2002", "2003", "2004"
+#"2018", "2019", "2020", "2021", "2022"
 $processRootPath = "P:\Data\Pictures\Studio"
 $picturesRootPath = "P:\Data\Pictures"
+$picturesAlbumPath = "P:\Data\Pictures\Album"
 $currentDateTime = Get-Date -Format "yyyy-MM-dd-HHmm"
 $logFilePath = Join-Path $archiveRootPath -ChildPath "$currentDateTime.txt"
 $logStudioFiles = Join-Path $archiveRootPath -ChildPath "studiofiles $currentDateTime.txt"
@@ -34,11 +36,6 @@ $logRemoveFiles = Join-Path $archiveRootPath -ChildPath "removefiles $currentDat
 $logCompressFiles = Join-Path $archiveRootPath -ChildPath "compressfiles $currentDateTime.txt"
 $years >> $logFilePath
 
-$exiftoolPath = "C:\ProgramData\chocolatey\bin\exiftool.exe"
-if (!(Test-Path -Path $exiftoolPath)) {
-    Write-Output "exiftool not found"
-    Exit
-}
 $magickPath = "C:\Program Files\ImageMagick-7.1.1-Q16-HDRI\magick.exe"
 if (!(Test-Path -Path $magickPath)) {
     Write-Output "magick not found"
@@ -46,17 +43,8 @@ if (!(Test-Path -Path $magickPath)) {
 }
 $magickArgs = "-compress", "JPEG", "-quality", "70","-sampling-factor", "4:2:2"
 
-#$modelsFile = "X:\Data\_config\Pictures\EXIFmodels.txt"
-$modelsFile = "$PSScriptRoot\EXIFmodels.txt"
-if (!(Test-Path -Path $modelsFile)) {
-    Write-Output "model file not found"
-    Exit
-}
-
 $studioFolders = @()
-$images = @()
-$imageFiles = @()
-$imageNumbers = @()
+$jpgFiles = @()
 
 foreach ($year in $years) {
     $processYearPath = Join-Path -Path $processRootPath $year
@@ -71,32 +59,35 @@ foreach ($year in $years) {
         #if ($folderMonth -eq "2018-08-August") {
         #    Continue 
         #}
-        $jpg = Get-ChildItem $processPath -Filter *.jpg
-        $imageFiles = $jpg # only processing jpg files
+        $jpgFiles = Get-ChildItem $processPath -Filter *.jpg
+        #$imageFiles = $jpg # only processing jpg files
         #Get-ChildItem -Path $processPath -Exclude *.mie, *.xmp, *.tif, *.pp3, *.txt, captureone, "Ellen Senior Pictures", "2018-08-August"
-        $images = $imageFiles.BaseName | Sort-Object | Get-Unique
+        #$images = $imageFiles.BaseName | Sort-Object | Get-Unique
 
         # loop through all image basenames
-        foreach ($image in $imagesFiles) {
+        foreach ($jpgFile in $jpgFiles) {
             # debug
             #$image >> $logFilePath
-            $jpgFilePath = Join-Path -path $processPath -ChildPath "$image.jpg"
-            if (Test-Path -Path $jpgFilePath) {
-                $jpgFile = Get-ChildItem -Path $jpgFilePath
-            }
-            #copy jpg, xmp to \album
-            $destination = "album"
-            $destinationPath = Join-Path -Path $picturesRootPath -ChildPath $destination $folderYear $folderMonth 
-            if ($jpgFile.Length -gt 2MB) {
-                #compress jpg
-                $destinationMagickPath = Join-Path -Path $destinationPath -ChildPath $jpgFile.Name
-                & $magickPath $jpgFilePath $magickArgs $destinationMagickPath
-                $jpgFilePath >> $logCompressFiles
+            #copy jpg to \album
+            $jpgFilePath = $jpgFile.FullName
+            $destinationPath = Join-Path -Path $picturesAlbumPath -ChildPath $folderYear $folderMonth 
+            $destinationFilePath = Join-Path $destinationPath -ChildPath $jpgFile.Name
+
+            if ((Test-Path -Path $destinationFilePath)) {
+                Write-Output $destinationFilePath " already exists"
             }
             else {
-                #copy jpeg
-                $copySourcePath = Join-Path -Path $archivePath -ChildPath "$image.jpg"
-                Copy-Item -Path $copySourcePath -Destination $destinationPath
+                if ($jpgFile.Length -gt 2MB) {
+                    #compress jpg
+                    $destinationMagickPath = Join-Path -Path $destinationPath -ChildPath $jpgFile.Name
+                    & $magickPath $jpgFilePath $magickArgs $destinationMagickPath
+                    $jpgFilePath >> $logCompressFiles
+                }
+                <# Action when all if and elseif conditions are false #>
+                else {
+                    #copy jpeg
+                    Copy-Item -Path $jpgFilePath -Destination $destinationPath
+                }
             }
         #images loop
         }
