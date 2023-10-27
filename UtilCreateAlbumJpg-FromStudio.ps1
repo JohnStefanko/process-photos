@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Originally, I didn't create jpgs for culled photos moved to \studio, so there was no jpg in \album until I edited them. Now, the original jpg will be added to \album by default.
-    Assumes Exiftool is installed via Chocolatey at "C:\ProgramData\chocolatey\bin\exiftool.exe."
+    Uses imagemagick for compression
 
 .PARAMETER Path
     Path to folder with images to be processed.
@@ -13,27 +13,25 @@
     Path of photos to process.
 
 .OUTPUTS
-    Create movedfiles.txt, dupfiles.txt, and backupfiles.txt showing which NAS folders need to be backed up.
+    
 
 .EXAMPLE
-    Process-Photos -path C:\data\photos
+    UtilCreateAlbumJpg
 
 .LINK
     References: 
-    exiftool stay_open: https://exiftool.org/exiftool_pod.html#Advanced-options
-    command to run while debugging: 
-    taskkill /IM "exiftool.exe" /F
 #>
-$years = "2002", "2003", "2004"
+#
+$years = "2014", "2015", "2016", "2017", "2018", "2019", "2020", "2021", "2022"
+#"2006", "2007", "2008", "2009", "2010", "2011", "2012", "2013"
+#"2002", "2003", "2004", "2005"
 #"2018", "2019", "2020", "2021", "2022"
 $processRootPath = "P:\Data\Pictures\Studio"
 $picturesRootPath = "P:\Data\Pictures"
 $picturesAlbumPath = "P:\Data\Pictures\Album"
 $currentDateTime = Get-Date -Format "yyyy-MM-dd-HHmm"
-$logFilePath = Join-Path $archiveRootPath -ChildPath "$currentDateTime.txt"
-$logStudioFiles = Join-Path $archiveRootPath -ChildPath "studiofiles $currentDateTime.txt"
-$logRemoveFiles = Join-Path $archiveRootPath -ChildPath "removefiles $currentDateTime.txt"
-$logCompressFiles = Join-Path $archiveRootPath -ChildPath "compressfiles $currentDateTime.txt"
+$logFilePath = Join-Path $processRootPath -ChildPath "$currentDateTime.txt"
+$logCompressFiles = Join-Path $processRootPath -ChildPath "compressfiles $currentDateTime.txt"
 $years >> $logFilePath
 
 $magickPath = "C:\Program Files\ImageMagick-7.1.1-Q16-HDRI\magick.exe"
@@ -47,6 +45,7 @@ $studioFolders = @()
 $jpgFiles = @()
 
 foreach ($year in $years) {
+    Write-Output $year
     $processYearPath = Join-Path -Path $processRootPath $year
     $processMonthPaths = Get-ChildItem -Path $processYearPath -Directory
     foreach ($processPath in $processMonthPaths) {
@@ -59,15 +58,11 @@ foreach ($year in $years) {
         #if ($folderMonth -eq "2018-08-August") {
         #    Continue 
         #}
+        $jpgFiles = @()
         $jpgFiles = Get-ChildItem $processPath -Filter *.jpg
-        #$imageFiles = $jpg # only processing jpg files
-        #Get-ChildItem -Path $processPath -Exclude *.mie, *.xmp, *.tif, *.pp3, *.txt, captureone, "Ellen Senior Pictures", "2018-08-August"
-        #$images = $imageFiles.BaseName | Sort-Object | Get-Unique
 
         # loop through all image basenames
         foreach ($jpgFile in $jpgFiles) {
-            # debug
-            #$image >> $logFilePath
             #copy jpg to \album
             $jpgFilePath = $jpgFile.FullName
             $destinationPath = Join-Path -Path $picturesAlbumPath -ChildPath $folderYear $folderMonth 
@@ -85,18 +80,17 @@ foreach ($year in $years) {
                 }
                 <# Action when all if and elseif conditions are false #>
                 else {
-                    #copy jpeg
+                    #copy jpg
                     Copy-Item -Path $jpgFilePath -Destination $destinationPath
                 }
+                Write-Output $jpgFilePath " added to album"
             }
-        #images loop
+        #files loop
         }
     # month loop
     }
 # year loop
 }
 
-
 $studioFolders = $studioFolders | Sort-Object -Unique
-Set-Content -path (Join-Path -Path $archiveRootPath -ChildPath "studiofolders $currentDateTime.txt") -Value $studioFolders
-
+Set-Content -path (Join-Path -Path $processRootPath -ChildPath "studiofolders $currentDateTime.txt") -Value $studioFolders
