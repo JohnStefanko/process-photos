@@ -3,7 +3,7 @@
     Process culled photos after import; 
     Delete Rejects
     Label="Blue": Copy all to \Studio; Make .mie; Move all to \Archive
-    Rating="2", "3", "4", "5": Copy jpg to \Studio; Make .mie; Move all to \Archive
+    Rating="2", "3", "4", "5": Copy/compress jpg to \Album; Make .mie; Move all to \Archive
 
 .DESCRIPTION
     Assumes Exiftool is installed via Chocolatey at "C:\ProgramData\chocolatey\bin\exiftool.exe."
@@ -30,7 +30,8 @@
 $cullPath = "P:\Data\Pictures\ToCull"
 $picturesRootPath = "P:\Data\Pictures"
 $albumPath = Join-Path -Path $picturesRootPath -ChildPath "album"
-$archivePath = Join-Path -Path $picturesRootPath -ChildPath "archive"
+$archivePath = "S:\Data\Pictures\Archive"
+#Join-Path -Path $picturesRootPath -ChildPath "archive"
 $studioPath = Join-Path -Path $picturesRootPath -ChildPath "studio"
 $rejectPath= Join-Path -Path $picturesRootPath -ChildPath "reject"
 
@@ -77,23 +78,29 @@ $psi.RedirectStandardError = $true
 $exiftool = [System.Diagnostics.Process]::Start($psi)
 
 foreach ($image in $images) {
+    # determine where to get EXIF rating from
+    # jpg file first, then xmp sidecar (not sure why I did it this way)
+    # rating DNG files in FastRawViewer creates xmp sidecar, and does not update .jpg, so need to use xmp first
     $jpgFilePath =  Join-Path -Path $cullPath -ChildPath "$image.jpg"
     $xmpFilePath = Join-Path -Path $cullPath -ChildPath "$image.xmp"
     $jpgFileExists = Test-Path -Path $jpgFilePath
     $xmpFileExists = Test-Path -Path $xmpFilePath
     if ($jpgFileExists) {
-        $exifFilePath = $jpgFilePath
         $jpgFile = Get-ChildItem -Path $jpgFilePath
     }
+    if ($xmpFileExists) {
+        $exifFilePath = $xmpFilePath
+    }
     else {
-        if ($xmpFileExists) {
-            $exifFilePath = $xmpFilePath
+        if ($jpgFileExists) {
+            $exifFilePath = $jpgFilePath
         }
         else {
             "INFO: no EXIF info for $image" >> $logFilePath
             continue
         }
     }
+    
     $miePath = Join-Path -Path $cullPath -ChildPath "$image.mie"
     if (!(Test-Path ($miePath))) {
         $exiftool.StandardInput.WriteLine("-tagsFromFile")
@@ -158,7 +165,7 @@ foreach ($image in $images) {
         $destination = "studio"
     }
     else {
-        # not Blue; copy compressed jpg to \Albums (local and NAS); move to \Archive
+        # not Blue; create compressed jpg in \Albums (local and NAS); move all image files to \Archive
         $destination = switch ($exifRating) {
             "-1" {"reject"}
             "1" {"archive"}
@@ -176,12 +183,12 @@ foreach ($image in $images) {
         "studio" {
             $copyPath = Join-Path -Path $cullPath -ChildPath "$image.*"
             Copy-Item -Path $copyPath -Destination $destinationPath -Exclude "*.mie"
-            #jpg to \album
+            #create compressed jpg in \album
             if ($jpgFileExists) {
                 $destinationMagickPath = Join-Path -Path $albumDestinationPath -ChildPath $jpgFile.Name
                 & $magickPath $jpgFilePath $magickArgs $destinationMagickPath
             }
-            # move to \archive
+            # move all image files to \archive
             Move-Item -Path $movePath -Destination $moveDestinationPath 
         }
         "reject" {
@@ -190,11 +197,11 @@ foreach ($image in $images) {
             Remove-Item -Path $removePath 
         }
         "archive" { 
-            # move to \archive
+            # move all image files to \archive
             Move-Item -Path $movePath -Destination $moveDestinationPath
         }    
         "album" {
-            #compress jpg, copy xmp to \album; move to \archive
+            #create compressed jpg in \album, move all image files to \archive
             if ($jpgFileExists) {
                 $destinationMagickPath = Join-Path -Path $destinationPath -ChildPath $jpgFile.Name
                 & $magickPath $jpgFilePath $magickArgs $destinationMagickPath
