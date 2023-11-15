@@ -23,6 +23,7 @@
 
 #>
 $path = "P:\Data\Pictures\From Camera\a6400m"
+$archivePath = "S:\Data\Pictures\Archive"
 $cullPath = "P:\Data\Pictures\ToCull"
 $currentDateTime = Get-Date -Format "yyyy-MM-dd-HHmm"
 $backupPath = "S:\Data\Pictures\Backup\$currentDateTime"
@@ -124,9 +125,13 @@ foreach ($image in $images) {
         $exifDTO = [DateTime]$exiftoolOut
         $exiftoolOut = $exiftool.StandardOutput.ReadLine()
     }    
+    $folderYear = $exifDTO.ToString("yyyy")
+    $folderMonth = $exifDTO.ToString("yyyy-MM-MMMM")
+    $newImageBaseName = ($model, $exifDTO.ToString("yyyy-MM-dd"), $exifDTO.ToString("HHmm"), $imageNumber -join "_")
+
     $imageFilesPath = Join-Path -Path $path -ChildPath "$image.*"
     $imageFiles = Get-ChildItem -Path $imageFilesPath
-    $newImageBaseName = ($model, $exifDTO.ToString("yyyy-MM-dd"), $exifDTO.ToString("HHmm"), $imageNumber -join "_")
+
     foreach ($imageFile in $imageFiles) {
         $imageFileExtension = $imageFile.Extension # includes ".""
         if (Test-Path (Join-Path -Path $path -ChildPath "$newImageBaseName$imageFileExtension")) {
@@ -136,17 +141,28 @@ foreach ($image in $images) {
         $renamedImageFile = Rename-Item -path $imageFile.FullName -NewName "$newImageBaseName$imageFileExtension" -PassThru
 
         #copy to backup folder; defaults to replace if file exists
-        $destinationCopyPath = Join-Path -Path $backupPath -ChildPath $renamedImageFile.Name
-        if (!(Test-Path $destinationCopyPath)) {
+        $destinationFileCopyPath = Join-Path -Path $backupPath -ChildPath $renamedImageFile.Name
+        if (!(Test-Path $destinationFileCopyPath)) {
             Copy-Item -Path $renamedImageFile.FullName -Destination $backupPath
         }
         else {
             "INFO: " + $renamedImageFile.FullName + " already exists in $backupPath" >> $logFilePath
         }
-        # move to \ToCull
-        $destinationMovePath = Join-Path -Path $cullPath -ChildPath $renamedImageFile.Name
-        if (!(Test-Path $destinationMovePath)) {
-            Move-Item -Path $renamedImageFile.FullName -Destination $cullPath
+        # move to \ToCull or \Archive for monochrome ARW files
+        if ($model -eq "a6400m" -and $imageFileExtension -eq ".arw") {
+            <# Action to perform if the condition is true #>
+            #move to archive
+            $destinationFileMovePath = Join-Path -Path $archivePath -ChildPath $folderYear $folderMonth $renamedImageFile.Name
+            $destinationFolderMovePath = $archivePath
+        }
+        else {
+            <# Action when all if and elseif conditions are false #>
+            $destinationFileMovePath = Join-Path -Path $cullPath -ChildPath $renamedImageFile.Name
+            $destinationFolderMovePath = $cullPath
+            
+        }
+        if (!(Test-Path $destinationFileMovePath)) {
+            Move-Item -Path $renamedImageFile.FullName -Destination $destinationFolderMovePath
         }
         else {
             "INFO: " + $renamedImageFile.FullName + "  already exists in $cullPath" >> $logFilePath

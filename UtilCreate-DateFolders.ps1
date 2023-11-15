@@ -3,18 +3,20 @@
 
 #>
 
-$newyear = "2021"
+$newyear = "2024"
 if ($newyear -eq "") {
     $newyear = (Get-Date).Year
 }
 #$path = "C:\Users\John\Pictures\Test\darktable"
 #$path = "X:\Data\Pictures"
-$path = "P:\Data\Pictures"
+$albumPath = "P:\Data\Pictures\Album"
+$studioPath = "P:\Data\Pictures\Studio"
+$archivePath = "S:\Data\Pictures\Archive"
 
-$yearAlbumPath = Join-Path -Path $path -ChildPath "Album" -AdditionalChildPath $newyear
-$yearArchivePath = Join-Path -Path $path -ChildPath "Archive" -AdditionalChildPath $newyear
-$yearStudioPath = Join-Path -Path $path -ChildPath "Studio" -AdditionalChildPath $newyear
-if(!(Test-Path $path))
+$yearAlbumPath = Join-Path -Path $albumPath -ChildPath $newyear
+$yearArchivePath = Join-Path -Path $archivePath -ChildPath $newyear
+$yearStudioPath = Join-Path -Path $studioPath -ChildPath $newyear
+if(!(Test-Path $albumPath))
 {
     "Drive not mapped!"
     Exit
