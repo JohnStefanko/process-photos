@@ -1,9 +1,6 @@
 <#
 .SYNOPSIS
-    Process culled photos in local \Archive folder based on star rating ("-Rating")
-        Label = "Blue": copy all to \Studio
-        1: do nothing
-        2, 3, 4, 5: copy jpg to local \Album
+    Copy certain exif data from xmp files to jpg files    
 
 .DESCRIPTION
     Assumes Exiftool is installed via Chocolatey at "C:\ProgramData\chocolatey\bin\exiftool.exe."
