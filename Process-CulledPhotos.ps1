@@ -4,6 +4,7 @@
     Delete Rejects
     Label="Blue": Copy all to \Studio; Make .mie; Move all to \Archive
     Rating="2", "3", "4", "5": Copy/compress jpg to \Album; Make .mie; Move all to \Archive
+    Rating="1": Move to Archive
 
 .DESCRIPTION
     Assumes Exiftool is installed via Chocolatey at "C:\ProgramData\chocolatey\bin\exiftool.exe."
@@ -65,6 +66,8 @@ $heic = Get-ChildItem $cullPath -filter *.heic
 $imageFiles = $jpg + $dng + $heic + $arw
 #$rawFiles = $dng + $arw + $srw
 $images = $imageFiles.BaseName | Sort-Object | Get-Unique
+$intNumImages = $images.length
+Write-Host "Processing $intNumImages images"
 
 # create Exiftool process
 $psi = New-Object System.Diagnostics.ProcessStartInfo
@@ -76,31 +79,39 @@ $psi.RedirectStandardOutput = $true
 $psi.RedirectStandardError = $true
 
 $exiftool = [System.Diagnostics.Process]::Start($psi)
-
+$count = 0
 foreach ($image in $images) {
-    # determine where to get EXIF rating from
-    # jpg file first, then xmp sidecar (not sure why I did it this way)
-    # rating DNG files in FastRawViewer creates xmp sidecar, and does not update .jpg, so need to use xmp first
-    $jpgFilePath =  Join-Path -Path $cullPath -ChildPath "$image.jpg"
+    $count = $count + 1
+    Write-Host "$count of $intNumImages ($image)"
+    # FastRawViewer set to always create XMP sidecar for both RAW and JPG files
+    # Ratings will always be in XMP
     $xmpFilePath = Join-Path -Path $cullPath -ChildPath "$image.xmp"
-    $jpgFileExists = Test-Path -Path $jpgFilePath
     $xmpFileExists = Test-Path -Path $xmpFilePath
+    if (!($xmpFileExists)) {
+        "INFO: no XMP info for $image" >> $logFilePath
+        continue
+    }
+    # DateTimeOriginal has to come from JPG or RAW file; does NOT exist in XMP file
+    $jpgFilePath = Join-Path -Path $cullPath -ChildPath "$image.jpg"
+    $jpgFileExists = Test-Path -Path $jpgFilePath
     if ($jpgFileExists) {
+        # can get DTO from JPG if either only JPG or both RAW + JPG
+        $exifFilePath = $jpgFilePath
         $jpgFile = Get-ChildItem -Path $jpgFilePath
     }
-    if ($xmpFileExists) {
-        $exifFilePath = $xmpFilePath
-    }
     else {
-        if ($jpgFileExists) {
-            $exifFilePath = $jpgFilePath
+        # No JPG, check for RAW
+        $arwFilePath = Join-Path -Path $cullPath -ChildPath "$image.arw"
+        $arwFileExists = Test-Path -Path $arwFilePath
+        if ($arwFileExists) {
+            $exifFilePath = $arwFilePath
         }
-        else {
-            "INFO: no EXIF info for $image" >> $logFilePath
-            continue
+        $dngFilePath = Join-Path -Path $cullPath -ChildPath "$image.dng"
+        $dngFileExists = Test-Path -Path $dngFilePath
+        if ($dngFileExists) {
+            $exifFilePath = $dngFilePath
         }
     }
-    
     $miePath = Join-Path -Path $cullPath -ChildPath "$image.mie"
     if (!(Test-Path ($miePath))) {
         $exiftool.StandardInput.WriteLine("-tagsFromFile")
@@ -136,22 +147,22 @@ foreach ($image in $images) {
     #get rating
     $exiftool.StandardInput.WriteLine("-Rating")
     $exiftool.StandardInput.WriteLine("-s3")
-    $exiftool.StandardInput.WriteLine("$exifFilePath")
+    $exiftool.StandardInput.WriteLine("$xmpFilePath")
     $exiftool.StandardInput.WriteLine("-execute")
     $exiftoolOut = $exiftool.StandardOutput.ReadLine()
     while ($exiftoolOut -ne "{ready}") {
-        $exifRating = $exiftoolOut
+        $xmpRating = $exiftoolOut
         $exiftoolOut = $exiftool.StandardOutput.ReadLine()
     }
     
     #get label for \studio; copy all image files if "Blue"
     $exiftool.StandardInput.WriteLine("-Label")
     $exiftool.StandardInput.WriteLine("-s3")
-    $exiftool.StandardInput.WriteLine("$exifFilePath")
+    $exiftool.StandardInput.WriteLine("$xmpFilePath")
     $exiftool.StandardInput.WriteLine("-execute")
     $exiftoolOut = $exiftool.StandardOutput.ReadLine()
     while ($exiftoolOut -ne "{ready}") {
-        $exifLabel = $exiftoolOut
+        $xmpLabel = $exiftoolOut
         $exiftoolOut = $exiftool.StandardOutput.ReadLine()
     }
     
@@ -160,13 +171,13 @@ foreach ($image in $images) {
     $moveDestinationPath = Join-Path -Path $archivePath -ChildPath $folderYear $folderMonth
     # for \studio
     $albumDestinationPath = Join-Path -Path $albumPath -ChildPath $folderYear $folderMonth
-    if ($exifLabel -eq "Blue") {
+    if ($xmpLabel -eq "Blue") {
         # copy all to \studio; move to \archive
         $destination = "studio"
     }
     else {
         # not Blue; create compressed jpg in \Albums (local and NAS); move all image files to \Archive
-        $destination = switch ($exifRating) {
+        $destination = switch ($xmpRating) {
             "-1" {"reject"}
             "1" {"archive"}
             "2" {"album"}
@@ -219,11 +230,30 @@ foreach ($image in $images) {
             #do nothing
         }
     }
-$exifRating = ""
-$exifLabel = ""
-$xmpFilePath = "" # for rating, label
+$exiftoolOut = ""
+$xmpRating = ""
+$xmpLabel = ""
 $exifFilePath = "" # for date time
+$jpgFile = ""
 $jpgFilePath = ""
+$jpgFileExists = $false
+$xmpFilePath = "" # for rating, label
+$xmpFileExists = $false
+$arwFilePath = ""
+$arwFileExists = $false
+$dngFilePath = ""
+$dngFileExists = $false
+$copyPath = ""
+$destination = ""
+$destinationPath = ""
+$destinationMagickPath = ""
+$movePath = ""
+$moveDestinationPath = ""
+$removePath = ""
+$albumDestinationPath = ""
+
+
+Write-Host "$image complete"
 # end image loop
 }
 
@@ -235,7 +265,7 @@ $stdout = $exiftool.StandardError.ReadToEnd()
 $stdout
 #EXAMPLE: watching for modified folders
 $backupFolders = $backupFolders | Sort-Object -Unique
-Set-Content -path (Join-Path -Path $path -ChildPath "backupfolders.txt") -Value $backupFolders
+Set-Content -path (Join-Path -Path $cullPath -ChildPath "backupfolders_$currentDateTime.txt") -Value $backupFolders
 $backupFolders
 
 
