@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
     Process culled photos after import; 
-    Delete Rejects
     Label="Blue": Copy all to \Studio; Make .mie; Move all to \Archive
     Rating="2", "3", "4", "5": Copy/compress jpg to \Album; Make .mie; Move all to \Archive
     Rating="1": Move to Archive
+    Rating="-1": Delete Rejects
 
 .DESCRIPTION
     Assumes Exiftool is installed via Chocolatey at "C:\ProgramData\chocolatey\bin\exiftool.exe."
@@ -36,27 +36,56 @@ $archivePath = "S:\Data\Pictures\Archive"
 $studioPath = Join-Path -Path $picturesRootPath -ChildPath "studio"
 $rejectPath= Join-Path -Path $picturesRootPath -ChildPath "reject"
 
-
 $currentDateTime = Get-Date -Format "yyyy-MM-dd-HHmm"
 $logFilePath = Join-Path "C:\Data\Logs\Pictures" -ChildPath "CulledPhotos_$currentDateTime.txt"
 #$NasRootPath = "X:\Data\Pictures"
 #$rawFileExtensions = (".arw")
 $rawFileExtensions = (".arw", ".srw")
-#TODO: Rewrite so magick not version/path dependent
-$magickPath = "C:\Program Files\ImageMagick-7.1.1-Q16-HDRI\magick.exe"
-$magickArgs = "-compress", "JPEG", "-quality", "70","-sampling-factor", "4:2:2"
-$exifToolPath = "C:\ProgramData\chocolatey\bin\exiftool.exe"
 $images = @()
 $backupFolders = @()
 
-if (!(Test-Path -Path $exifToolPath)) {
+#exiftool.exe is in PATH
+#$exifToolPath = "C:\ProgramData\chocolatey\bin\exiftool.exe"
+$exifToolPath = "exiftool.exe"
+try {
+    $exifToolOut = Get-Command exiftool.exe -ErrorAction Stop
+}
+catch {
+    <#Do this if a terminating exception happens#>
+    Write-Output "Exiftool not found"
+    Exit
+}
+$output = "Exiftool: " + $exifToolOut.version + " (" + $exifToolOut.Source + ")"
+Write-Output $output
+<#
+    if (!(Test-Path -Path $exifToolPath)) {
     Write-Output "exiftool not found"
     Exit
 }
-if (!(Test-Path -Path $magickPath)) {
+#>
+
+#$magickPath = "C:\Program Files\ImageMagick-7.1.1-Q16-HDRI\magick.exe"
+# magick.exe is in PATH
+$magickPath = "magick.exe"
+$magickArgs = "-compress", "JPEG", "-quality", "70","-sampling-factor", "4:2:2"
+#$magickArgs = "-version"
+try {
+    $magickOut = Get-Command magick.exe -ErrorAction Stop
+}
+catch {
+    <#Do this if a terminating exception happens#>
+    Write-Output "Magick.exe not found"
+}
+$output = "Magick: " + $magickOut.version + " (" +$magickOut.Source + ")"
+Write-Output $output
+<#
+$testout = & $magickPath $magickArgs
+Write-Output $testout.split([Environment]::Newline)[0]
+if ($testout.split([Environment]::Newline)[0].Substring(0,7) -ne "Version") {
     Write-Output "magick not found"
     Exit
 }
+#>
 
 $jpg = Get-ChildItem $cullPath -Filter *.jpg
 $dng = Get-ChildItem $cullPath -Filter *.dng
@@ -82,7 +111,9 @@ $exiftool = [System.Diagnostics.Process]::Start($psi)
 $count = 0
 foreach ($image in $images) {
     $count = $count + 1
-    Write-Host "$count of $intNumImages ($image)"
+    $complete = [int](100 * ($count/$intNumImages))
+    $stat = $count.ToString() + " of " + $intNumImages.ToString()
+    Write-Progress -Activity "Processing photos" -Status $stat -PercentComplete $complete -CurrentOperation $image
     # FastRawViewer set to always create XMP sidecar for both RAW and JPG files
     # Ratings will always be in XMP
     $xmpFilePath = Join-Path -Path $cullPath -ChildPath "$image.xmp"
@@ -252,8 +283,7 @@ $moveDestinationPath = ""
 $removePath = ""
 $albumDestinationPath = ""
 
-
-Write-Host "$image complete"
+#Write-Host "$image complete"
 # end image loop
 }
 
