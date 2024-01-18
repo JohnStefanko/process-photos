@@ -20,6 +20,7 @@
 .LINK
     References: 
     exiftool stay_open: https://exiftool.org/exiftool_pod.html#Advanced-options
+    taskkill /IM "exiftool.exe" /F
 
 #>
 $path = "P:\Data\Pictures\From Camera\a6400m"
@@ -151,9 +152,9 @@ foreach ($image in $images) {
         # move to \ToCull or \Archive for monochrome ARW files
         if ($model -eq "a6400m" -and $imageFileExtension -eq ".arw") {
             <# Action to perform if the condition is true #>
-            #move to archive
+            #arw monochrome files have crosshatch artifact and are not needed; move to archive
             $destinationFileMovePath = Join-Path -Path $archivePath -ChildPath $folderYear $folderMonth $renamedImageFile.Name
-            $destinationFolderMovePath = $archivePath
+            $destinationFolderMovePath = Join-Path -Path $archivePath -ChildPath $folderYear $folderMonth 
         }
         else {
             <# Action when all if and elseif conditions are false #>
