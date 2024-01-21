@@ -62,6 +62,9 @@ $heic = Get-ChildItem $path -filter *.heic
 $imageFiles = $jpg + $dng + $heic + $arw
 $images = $imageFiles.BaseName
 $images = $imageFiles.BaseName | Sort-Object | Get-Unique
+$intNumImages = $images.length
+Write-Host "Processing $intNumImages images"
+
 
 # create Exiftool process
 #EXAMPLE: use of System.Diagnostics.ProcessStartInfo and Process Start
@@ -73,8 +76,14 @@ $psi.RedirectStandardInput = $true
 $psi.RedirectStandardOutput = $true
 $psi.RedirectStandardError = $true
 $exiftool = [System.Diagnostics.Process]::Start($psi)
-
+$count = 0
 foreach ($image in $images) {
+    $count = $count + 1
+    $complete = [int](100 * ($count/$intNumImages))
+    $stat = $count.ToString() + " of " + $intNumImages.ToString()
+    Write-Progress -Activity "Processing photos" -Status $stat -PercentComplete $complete -CurrentOperation $image
+    # FastRawViewer set to always create XMP sidecar for both RAW and JPG files
+    # Ratings will always be in XMP
     # get jpeg if exists, or raw if not, for exif info
     $imageFilePath = Join-Path -Path $path -ChildPath "$image.jpg"
     $imageFile = Get-ChildItem -Path $imageFilePath
